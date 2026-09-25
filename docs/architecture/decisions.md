@@ -1,0 +1,143 @@
+# Architecture Decision Records
+
+Short records of the key decisions made before Phase 0, and why. Newest decisions go at
+the bottom. To change a decision, add a new ADR that supersedes the old one.
+
+---
+
+## ADR-001: Name and domain — Foyr on `foyr.online`
+**Date:** 2026-09-26 · **Status:** Accepted
+
+**Decision:** The product is called **Foyr**; the platform domain is `foyr.online`
+(apps at `<app>.foyr.online`).
+
+**Why:** Short and brandable, suggests "the entrance to your app". `foyr.online` was the
+cheapest available option for the first year.
+
+**Consequences:**
+- `.online` has a weaker email reputation, so magic-link email must use a dedicated sending
+  subdomain (`mail.foyr.online`) with SPF, DKIM and DMARC from day one.
+- The domain must never be hardcoded — everything reads `PLATFORM_DOMAIN` so we can move later.
+- An unrelated company (Foyr, interior-design software) owns `foyr.com` / `foyr.in`. Do a
+  trademark check before any significant brand spend.
+
+## ADR-002: Go for the control plane and proxy
+**Date:** 2026-09-26 · **Status:** Accepted
+
+**Decision:** foyrd and authproxy are written in **Go**. The dashboard is Next.js /
+TypeScript. SDKs are written per target language.
+
+**Why:** It's the founder's strongest language. Infra tooling is Go-native (Docker,
+Kubernetes, Caddy, Railpack). `net/http/httputil.ReverseProxy` is ideal for the auth proxy.
+Goroutines suit orchestration work. Single static binaries give small, fast-starting images.
+AWS SDK for Go v2 is first-class.
+
+**Consequences:** Two languages. The API is described in OpenAPI and the TypeScript client is
+generated from it.
+
+## ADR-003: OpenTofu for infrastructure as code
+**Date:** 2026-09-26 · **Status:** Accepted
+
+**Decision:** Static infrastructure is managed with **OpenTofu**, with state in S3 (native S3 locking).
+
+**Why:** Free and fully open source (MPL), with no licensing ambiguity for a hosting company.
+Same language and providers as Terraform.
+
+**Consequences:** Per-app resources are *not* in OpenTofu; foyrd creates them at runtime.
+
+## ADR-004: Monorepo
+**Date:** 2026-09-26 · **Status:** Accepted
+
+**Decision:** One repository for Go services, dashboard, marketing site, SDKs, infra and docs.
+
+**Why:** Solo founder; cross-cutting changes are constant early on; one history, one CI.
+
+**Consequences:** The public SDK is published to npm from `sdk/js/`; it can be split out later.
+
+## ADR-005: Three deployables, not microservices
+**Date:** 2026-09-26 · **Status:** Accepted
+
+**Decision:** Run **web**, **foyrd** (API + auth + deployer + jobs in one binary) and
+**authproxy**. No message broker, no service mesh.
+
+**Why:** Scaling comes from horizontal replicas, not from service count. The high-traffic
+path (tenant apps + proxy) is already isolated and autoscaled. authproxy is split out because
+it is on the data path and must survive foyrd outages.
+
+**When to split further:** a component needs very different resources, a bug in one part
+keeps taking down another, or a second team needs independent deploys.
+
+## ADR-006: Auth via proxy, not an injected SDK
+**Date:** 2026-09-26 · **Status:** Accepted · **Supersedes:** original spec §4.2 (build-time SDK injection)
+
+**Decision:** A Foyr-run **auth proxy** sits in front of every app, enforces login and
+per-app access, and forwards signed identity headers. The SDK only reads and verifies those headers.
+
+**Why:** True zero-code auth for any framework; no fragile build-time injection; apps that
+never call the SDK are still protected; SDKs in new languages are trivial. The proxy also
+enables proxy-level blue/green and scale-to-zero.
+
+**Alternatives rejected:** build-time SDK injection (fragile, JS-only, unprotected by
+default); ALB `authenticate-oidc` (limited login UX, per-ALB rule quotas, hard to pass roles).
+
+## ADR-007: Builds — own Next.js template first, Railpack later
+**Date:** 2026-09-26 · **Status:** Accepted · **Supersedes:** original spec's Nixpacks choice
+
+**Decision:** Phase 0 builds use the repo's own `Dockerfile` if present, otherwise a
+Foyr-maintained Next.js Dockerfile template. Adopt **Railpack** when a second framework is added.
+
+**Why:** Phase 0 supports Next.js only; one template is simpler to debug than an external
+builder. Nixpacks is in maintenance mode; Railpack is its successor.
+
+**Consequences:** The build step is an interface (repo in, image out) so the builder can be swapped.
+
+## ADR-008: Builds run on AWS CodeBuild
+**Date:** 2026-09-26 · **Status:** Accepted
+
+**Decision:** Each deploy runs as a CodeBuild job (`general1.medium`) that pushes to ECR.
+
+**Why:** Builds execute untrusted code and need isolation; Fargate cannot run Docker; no idle cost.
+~$0.01/min → roughly 2–5¢ per deploy.
+
+**Consequences:** ECR lifecycle policy keeps the last 5 images per app; use S3 dependency cache.
+
+## ADR-009: Scale-to-zero designed now, built in Phase 2–3
+**Date:** 2026-09-26 · **Status:** Accepted
+
+**Decision:** Phase 0–1 apps run one small always-on task (0.25 vCPU / 0.5 GB). The proxy and
+data model are designed for sleep/wake, implemented in Phase 2–3.
+
+**Why:** Keeps Phase 0 focused on proving deploys; cost of always-on test apps is small.
+
+## ADR-010: GitHub App instead of OAuth App
+**Date:** 2026-09-26 · **Status:** Accepted
+
+**Why:** Per-repo, read-only install; built-in push webhooks; short-lived installation tokens
+instead of stored user tokens.
+
+## ADR-011: fck-nat instead of NAT Gateway during build phase
+**Date:** 2026-09-26 · **Status:** Accepted
+
+**Why:** ~$4/mo vs ~$35–50/mo. Move to a managed NAT Gateway once there are paying users.
+
+## ADR-012: One shared Aurora cluster for tenant databases
+**Date:** 2026-09-26 · **Status:** Accepted · **Supersedes:** original spec §4.6 (cluster per app)
+
+**Decision:** One Aurora Serverless v2 cluster with a separate database and login per app.
+
+**Why:** Roughly 20× cheaper than a cluster per app, still credential-isolated. Dedicated
+clusters can be a paid-plan feature.
+
+## ADR-013: Region ap-south-1 (Mumbai)
+**Date:** 2026-09-26 · **Status:** Accepted
+
+**Why:** Founder and early users are expected to be in India; lower latency for them.
+All required services (Fargate, CodeBuild, Aurora Serverless v2, SES, ACM) are available.
+
+## ADR-014: Marketing site and docs on Vercel
+**Date:** 2026-09-26 · **Status:** Accepted
+
+**Decision:** The public website and documentation live in `site/` and are hosted on Vercel,
+separately from the AWS product platform.
+
+**Why:** Fast to ship, free tier, and keeps marketing uptime independent of the platform.
