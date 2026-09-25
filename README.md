@@ -16,6 +16,7 @@ zero auth code and no AWS console.
 | [System design](docs/architecture/system-design.md) | How the platform works end to end |
 | [Decisions (ADRs)](docs/architecture/decisions.md) | Key technical choices and why |
 | [Roadmap](docs/roadmap.md) | Phases and exit criteria |
+| [Website design brief](docs/website/design-brief.md) | Look, feel, sections and motion for foyr.online |
 
 ## Stack at a glance
 
