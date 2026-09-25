@@ -1,9 +1,9 @@
-# Foyr Website — Design Brief
+# Foyr Website: Design Brief
 
 > Hand this file to the designer / design tool. It describes **what to build, how it should
 > look, and how it should move**. Visual direction is inspired by rightfit.so (studied
 > 2026-09-26), adapted to Foyr's product and brand. Do **not** copy Rightfit's logo, copy,
-> photography or illustrations — match the *quality and feel*, not the assets.
+> photography or illustrations. Match the *quality and feel*, not the assets.
 
 ---
 
@@ -21,14 +21,14 @@ Customer apps never appear on `*.foyr.online`.
 
 A marketing website + public docs for **Foyr**, hosted on **Vercel** at `foyr.online`.
 
-**Foyr in one line:** Deploy the app you already wrote — with login, invites and roles built in.
+**Foyr in one line:** Deploy the app you already wrote, with login, invites and roles built in.
 
 **Primary goal:** collect **waitlist sign-ups** from developers.
 **Secondary goal:** explain the product clearly enough that a developer "gets it" in 10 seconds,
 and give them docs to go deeper.
 
 **Audience:** solo developers and small teams who built something (often with Cursor / Claude
-Code) and need to share it privately with teammates or clients — internal tools, client
+Code) and need to share it privately with teammates or clients: internal tools, client
 dashboards, SaaS MVPs. Technical, skeptical of marketing fluff, impressed by craft.
 
 **Pre-launch honesty rule:** Foyr has no customers yet. **No fake stats, fake testimonials, fake
@@ -39,12 +39,12 @@ mockups, code, comparisons).
 
 ## 2. The feel (what makes the reference site great)
 
-Studied on rightfit.so — reproduce these qualities:
+Studied on rightfit.so. Reproduce these qualities:
 
 1. **Near-black, monochrome UI** with a single source of colour: rich, blurred photographic
    imagery *behind* crisp product mockups. The UI itself stays grey-scale.
 2. **Product-as-hero.** The biggest thing above the fold is a realistic, dense, *interactive*
-   mockup of the app inside a framed window — not an illustration.
+   mockup of the app inside a framed window, not an illustration.
 3. **Quiet, confident typography.** Inter at weight ~510 with tight negative tracking on
    headings; muted grey body copy; lots of empty space.
 4. **Hairline borders, not shadows.** Cards are `#191919` on `#000` with 1px `#2a2a2a` borders
@@ -79,7 +79,7 @@ Studied on rightfit.so — reproduce these qualities:
 Dark mode is the default and primary theme. Ship light mode tokens too (docs readers like it),
 but design dark first.
 
-### 4.1 Colour (dark — default)
+### 4.1 Colour (dark, default)
 
 ```css
 .dark {
@@ -100,11 +100,11 @@ but design dark first.
   --shadow-border-hover: 0 0 0 1px #ffffff21;
   --shadow-focus: 0 0 0 3px #ffffff1a;
 
-  /* status colours — used ONLY inside product mockups (badges, logs) */
+  /* status colours: used ONLY inside product mockups (badges, logs) */
   --success: #4ade80; --warning: #fbbf24; --info: #22d3ee;
   --destructive: #e5484d; --iris: #818cf8; --lavender: #a78bfa;
 
-  /* Foyr brand accent — used sparingly (focus rings, one CTA glow, link underline) */
+  /* Foyr brand accent: used sparingly (focus rings, one CTA glow, link underline) */
   --foyr-amber: #f5a524;
 }
 ```
@@ -154,7 +154,7 @@ Font: **Inter**, fallback `ui-sans-serif, system-ui, -apple-system`.
 - Left: Foyr logomark (see §8). Centre: **Product ▾ · Docs · Pricing · Changelog**. Right:
   secondary button **"Read the docs"**, primary button **"Join waitlist →"**.
 - "Product ▾" opens a mega-menu (fade + 4px slide, 200ms): Deploy · Auth & invites · Roles ·
-  Custom domains — each with a one-line description.
+  Custom domains, each with a one-line description.
 - Mobile: logo + hamburger → full-screen sheet menu.
 
 ### Buttons
@@ -168,7 +168,7 @@ Small bordered pill above sections: `FOR DEVELOPERS`, `HOW IT WORKS`, `[ FAQ ]`.
 
 ### Card
 `#191919` bg, 1px border, 8–12px radius, 20px padding. Title top-left (white, 15px/510), body
-bottom-left (neutral-400, 14px). Tall (≈210px) with empty middle space — the negative space is
+bottom-left (neutral-400, 14px). Tall (≈210px) with empty middle space; the negative space is
 intentional. On hover: border brightens and the small label above does the chroma shimmer (§7).
 
 ### Browser-window frame (for mockups)
@@ -182,19 +182,19 @@ Perplexity / Gemini icons that open each assistant with a pre-filled prompt abou
 
 ---
 
-## 6. Page: Home (`/`) — section by section
+## 6. Page: Home (`/`), section by section
 
 ### 6.1 Hero
 - **Layout:** two columns. Left: h1. Right (aligned to baseline): lead paragraph + 2 buttons.
 - **h1:** "Deploy the app you already built. Login included."
-- **Lead:** "Push your repo. Foyr gives it a URL, a front door and a guest list — invite people by
+- **Lead:** "Push your repo. Foyr gives it a URL, a front door and a guest list. Invite people by
   email, gate features by role. No auth code. No AWS console."
 - **Buttons:** `Join waitlist →` (primary) · `Read the docs` (secondary).
 - **Below:** full-width panel (16–20px radius) with a **tab bar** on top:
   `🚀 Deploy` · `🔑 Invite & roles` · `📜 Logs`. Clicking a tab cross-fades (300ms) the mockup
   inside. The panel background is a **blurred, warm photographic image** (see §8); the mockup
   window floats centred on it with a 1px light border.
-  - *Deploy tab:* Foyr dashboard — sidebar (Apps, Deployments, Members, Domains, Settings), a
+  - *Deploy tab:* Foyr dashboard with sidebar (Apps, Deployments, Members, Domains, Settings), a
     deployment list with statuses (`Live` green, `Building` amber pulse, `Failed` red), and a
     right panel showing the live URL `acme-crm.foyrapps.online`, commit SHA, "Deployed 2m ago".
   - *Invite & roles tab:* members table (avatar, email, role dropdown Owner/Admin/Member/Viewer,
@@ -203,7 +203,7 @@ Perplexity / Gemini icons that open each assistant with a pre-filled prompt abou
     (`▸ Detected Next.js 15 · pnpm` → `▸ Building…` → `✓ Health check passed` → `✓ Live`).
 
 ### 6.2 "What you get" bento (8 cards, 4×2)
-Headline: "Every app gets a front door." Sub: "Hosting, login and permissions — one push, no glue."
+Headline: "Every app gets a front door." Sub: "Hosting, login and permissions in one push, with no glue."
 
 | Label pill | Card title | Body |
 |---|---|---|
@@ -216,30 +216,30 @@ Headline: "Every app gets a front door." Sub: "Hosting, login and permissions �
 | Domains | Custom domains | Bring `app.yourco.com`. TLS certificates are automatic. |
 | Region | Hosted in Mumbai | Low latency for India, on AWS. More regions later. |
 
-### 6.3 "For developers" — three image cards
+### 6.3 "For developers": three image cards
 Eyebrow `FOR DEVELOPERS`. h2 left: "Ship it today. Share it safely." Paragraph right.
 Three tall image cards (colourful blurred photo backgrounds), each with a small **white** UI card
 floating in the centre, then title + description below the image:
-1. **Your app, live** — mini card: URL + green "Live" dot + sparkline of requests.
-2. **Who's inside** — mini card: 3 avatars with roles and "Invited 2h ago".
-3. **Every deploy, tracked** — mini card: bar chart of deploys Mon–Fri with a tooltip "3 deploys".
+1. **Your app, live**: mini card: URL + green "Live" dot + sparkline of requests.
+2. **Who's inside**: mini card: 3 avatars with roles and "Invited 2h ago".
+3. **Every deploy, tracked**: mini card: bar chart of deploys Mon–Fri with a tooltip "3 deploys".
 
-### 6.4 How it works — sticky scroll story (01 / 02 / 03)
+### 6.4 How it works: sticky scroll story (01 / 02 / 03)
 Left column (≈40%): numbered steps. Right column: a large browser-window mockup that bleeds off
 the right edge of the viewport. As the user scrolls, the left text changes and the mockup swaps.
 Each step has: number (`01`), h3, paragraph, then a thin divider and a sub-heading + detail.
 
-1. **Connect your repo** — "Install the Foyr GitHub app on the repos you choose. Read-only, per
+1. **Connect your repo**: "Install the Foyr GitHub app on the repos you choose. Read-only, per
    repo." Mockup: repo picker list with language icons and "Connect" buttons.
-2. **Push to deploy** — "We detect Next.js, build it, and ship it behind a health check."
+2. **Push to deploy**: "We detect Next.js, build it, and ship it behind a health check."
    Mockup: kanban-style deployment board **Queued → Building → Live**, cards are draggable
    (dnd-kit) purely for delight.
-3. **Invite your people** — "Add emails, pick a role, done. They log in with a magic link."
+3. **Invite your people**: "Add emails, pick a role, done. They log in with a magic link."
    Mockup: app access page with members + an invite email preview.
 
-### 6.5 "The only code you write" — SDK snippet
+### 6.5 "The only code you write": SDK snippet
 Two columns. Left: h2 "Auth without the auth code." + short paragraph: "Foyr's proxy handles
-login before requests reach your app. Read the user from a header — or use our 50-line SDK."
+login before requests reach your app. Read the user from a header, or use our 50-line SDK."
 Right: code window with tabs **Next.js · Express · FastAPI**:
 
 ```ts
@@ -260,11 +260,11 @@ h2: "Hosting and auth, finally in one place." A clean table, hairline rows:
 
 | | Foyr | Vercel / Railway / Render | + Auth0 / Clerk / Cognito |
 |---|---|---|---|
-| Deploy from GitHub | ✓ | ✓ | — |
-| Login in front of your app | ✓ built in | — | ✓ you integrate it |
-| Invite people per app | ✓ | — | partial |
-| Roles & permissions | ✓ | — | ✓ you build it |
-| Auth code you write | **none** | — | lots |
+| Deploy from GitHub | ✓ | ✓ | No |
+| Login in front of your app | ✓ built in | No | ✓ you integrate it |
+| Invite people per app | ✓ | No | partial |
+| Roles & permissions | ✓ | No | ✓ you build it |
+| Auth code you write | **none** | n/a | lots |
 
 Foyr column subtly highlighted (slightly lighter card background).
 
@@ -277,7 +277,7 @@ Questions:
 - Who can see my app? *(Only people you invite, unless you make it public.)*
 - Where is my app hosted? *(AWS Mumbai, ap-south-1.)*
 - How much will it cost? *(Free during early access. Simple pricing at launch.)*
-- When can I use it? *(Join the waitlist — we're onboarding in small batches.)*
+- When can I use it? *(Join the waitlist; we're onboarding in small batches.)*
 
 ### 6.8 Final CTA
 Full-bleed image band (≈520px tall), dark vignette on all edges fading into black. Big h1-size
@@ -299,7 +299,7 @@ success ("You're on the list. Check your inbox."), error (inline, red text). Opt
 | **Hover (default)** | colour / background / border, **150–200ms**, `cubic-bezier(0.4,0,0.2,1)`. |
 | **Card hover** | border `#2a2a2a → #ffffff21`, 300ms; eyebrow label does **chroma shimmer**. |
 | **Chroma shimmer** | Text fills with a moving gradient (`background-clip:text`, gradient `#666 → #fff → #666`, 200% width, sweeps 0.8s once). |
-| **Marquee** | Infinite horizontal scroll (`@keyframes marquee-x`), ~40s per loop, pauses on hover, edge fade masks left/right. Use it for **supported frameworks / tech logos** (Next.js, Node, Python, Docker, Postgres, GitHub, AWS) — not customer logos. |
+| **Marquee** | Infinite horizontal scroll (`@keyframes marquee-x`), ~40s per loop, pauses on hover, edge fade masks left/right. Use it for **supported frameworks / tech logos** (Next.js, Node, Python, Docker, Postgres, GitHub, AWS), not customer logos. |
 | **Tabs (hero)** | Active pill slides under the tab (`layoutId`), content cross-fades 300ms. |
 | **Mockup details** | "Building" badge pulses; log lines type in; counters tick up once when in view. |
 | **Scroll** | `scroll-behavior: smooth`; Lenis (`lerp: 0.1`) for wheel inertia on desktop only. |
@@ -311,10 +311,10 @@ Rule of thumb: **nothing faster than 150ms, nothing slower than 1.2s, nothing th
 
 ## 8. Brand & imagery
 
-- **Name:** Foyr — "the entrance of your app". Lowercase in the logotype: `foyr`.
+- **Name:** Foyr, "the entrance of your app". Lowercase in the logotype: `foyr`.
 - **Logomark idea:** a minimal geometric doorway / open-door glyph built from 4–6 rectangles on a
   grid (similar weight and pixel-grid feel to a monogram, but a *doorway*). White on black.
-- **Imagery:** the only colour on the site. **Warm light through doorways and openings** —
+- **Imagery:** the only colour on the site. **Warm light through doorways and openings**:
   abstract, heavily blurred, grainy photography: amber/orange light, teal shadows, soft bokeh,
   light leaks. Think "light spilling through a half-open door at dusk". Use for: hero panel,
   3 feature cards, final CTA band. Generate or license; never use stock with people's faces.
@@ -361,17 +361,17 @@ Rule of thumb: **nothing faster than 150ms, nothing slower than 1.2s, nothing th
 
 ## 12. Deliverables expected from design
 
-1. Home page — desktop (1440) and mobile (390) frames, dark mode.
+1. Home page: desktop (1440) and mobile (390) frames, dark mode.
 2. Header mega-menu, mobile menu, waitlist modal (all states).
 3. The three hero mockups (Deploy / Invite & roles / Logs) and three how-it-works mockups at full fidelity.
-4. Docs page template (sidebar, article, code block, callout, TOC) — dark and light.
+4. Docs page template (sidebar, article, code block, callout, TOC), dark and light.
 5. Pricing placeholder, 404.
 6. Logo mark + favicon + OG image.
 7. Component sheet: buttons, pills, cards, inputs, accordion, tabs, code window, browser frame.
 
 ---
 
-## 13. Round 2 — changes after the first design pass (2026-09-26)
+## 13. Round 2: changes after the first design pass (2026-09-26)
 
 The first pass (home page desktop + mobile, 3 hero mockups, 3 how-it-works mockups) is approved.
 Round 2 adds what was missing and fixes a few details. **Keep everything else exactly as it is.**
@@ -416,13 +416,13 @@ Two surfaces, all states:
 ### 13.5 Docs template (new board: `Docs`, desktop 1440 + mobile 390, dark + light)
 - Top bar = site header variant with search field (⌘K hint) and "Dashboard" link.
 - Left sidebar (240px): groups **Getting started** (Introduction, Quickstart), **Concepts** (How auth
-  works, Roles & permissions, Deployments), **Reference** (SDK — JavaScript, SDK — Python, `foyr.json`),
+  works, Roles & permissions, Deployments), **Reference** (JavaScript SDK, Python SDK, `foyr.json`),
   **Architecture**, **FAQ**. Active item highlighted `#222`.
 - Article (max 720px): breadcrumb, h1, lead, h2/h3, paragraph, inline code, **code block with tabs +
-  copy button**, **callouts** (note / warning / tip — grey background with a small icon, amber only for
+  copy button**, **callouts** (note / warning / tip: grey background with a small icon, amber only for
   warning), a table, an image/diagram frame, "Previous / Next" cards, "Edit on GitHub" + last updated.
 - Right "On this page" TOC (active heading highlighted).
-- Sample content: the **Quickstart** page — 1) Join waitlist 2) Connect GitHub 3) Push 4) Invite a teammate 5) Read the user in code (`getUser`).
+- Sample content: the **Quickstart** page: 1) Join waitlist 2) Connect GitHub 3) Push 4) Invite a teammate 5) Read the user in code (`getUser`).
 - Search modal (⌘K): input, grouped results, keyboard hints.
 
 ### 13.6 Pricing placeholder (new board: `Pricing`)
@@ -437,4 +437,4 @@ Two surfaces, all states:
 
 ### 13.8 Changelog (new board: `Changelog`)
 - Left: date column (sticky). Right: entries with title, tag pill (Product / Docs / Infra), short body.
-- First entry, 2026-09-26: "Foyr is being built" — one paragraph + link to docs.
+- First entry, 2026-09-26: "Foyr is being built", one paragraph + link to docs.
