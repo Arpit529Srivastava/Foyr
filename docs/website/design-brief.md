@@ -7,6 +7,16 @@
 
 ---
 
+## 0. Domains used in mockups
+
+| URL | What it is |
+|---|---|
+| `foyr.online` | This marketing site |
+| `app.foyr.online` | Foyr dashboard (browser-frame URL in dashboard mockups) |
+| `acme-crm.foyrapps.online` | A customer's deployed app (live URLs, invite emails, app mockups) |
+
+Customer apps never appear on `*.foyr.online`.
+
 ## 1. What we're building
 
 A marketing website + public docs for **Foyr**, hosted on **Vercel** at `foyr.online`.
@@ -163,10 +173,10 @@ intentional. On hover: border brightens and the small label above does the chrom
 
 ### Browser-window frame (for mockups)
 Dark window chrome: three grey dots, a rounded URL pill with a lock icon (e.g.
-`acme-crm.foyr.online`), reload icon. Mockup content inside. Frame sits on a blurred colour image.
+`acme-crm.foyrapps.online`), reload icon. Mockup content inside. Frame sits on a blurred colour image.
 
 ### Footer
-Four link columns (Product · Resources · Company · Connect), a one-line mission, "Made in India 🇮🇳",
+Four link columns (Product · Resources · Company · Connect), a one-line mission, "Made in India" (text, no emoji),
 © line, Terms · Privacy. Plus an **"Ask about Foyr on"** row with small ChatGPT / Claude /
 Perplexity / Gemini icons that open each assistant with a pre-filled prompt about Foyr.
 
@@ -186,7 +196,7 @@ Perplexity / Gemini icons that open each assistant with a pre-filled prompt abou
   window floats centred on it with a 1px light border.
   - *Deploy tab:* Foyr dashboard — sidebar (Apps, Deployments, Members, Domains, Settings), a
     deployment list with statuses (`Live` green, `Building` amber pulse, `Failed` red), and a
-    right panel showing the live URL `acme-crm.foyr.online`, commit SHA, "Deployed 2m ago".
+    right panel showing the live URL `acme-crm.foyrapps.online`, commit SHA, "Deployed 2m ago".
   - *Invite & roles tab:* members table (avatar, email, role dropdown Owner/Admin/Member/Viewer,
     status "Invited"/"Active"), an "Invite people" input with chips.
   - *Logs tab:* streaming build log in mono font, lines appearing one by one
@@ -358,3 +368,73 @@ Rule of thumb: **nothing faster than 150ms, nothing slower than 1.2s, nothing th
 5. Pricing placeholder, 404.
 6. Logo mark + favicon + OG image.
 7. Component sheet: buttons, pills, cards, inputs, accordion, tabs, code window, browser frame.
+
+---
+
+## 13. Round 2 — changes after the first design pass (2026-09-26)
+
+The first pass (home page desktop + mobile, 3 hero mockups, 3 how-it-works mockups) is approved.
+Round 2 adds what was missing and fixes a few details. **Keep everything else exactly as it is.**
+
+### 13.1 Fixes to existing boards
+- All customer-app URLs → `acme-crm.foyrapps.online` (Deploy panel "Production" link, Your-app-live
+  card, invite email, any other occurrence). Dashboard URL bars stay `app.foyr.online/...`.
+- Footer: replace "Made in India 🇮🇳" with plain text **"Made in India"** (no emoji anywhere).
+- Mark every scroll-reveal group with a small note or `data-reveal` so the build knows what fades up
+  (hero stack, each section heading block, bento cards staggered, image cards, steps, FAQ rows).
+
+### 13.2 Tech marquee (new strip, between hero 6.1 and bento 6.2)
+- Eyebrow-sized caption, centred: "Works with what you already use".
+- One row of monochrome logos (grey `#7b7b7b`, hover `#eee`), ~24px tall, 64px apart:
+  Next.js · Node.js · Express · Python · FastAPI · Docker · PostgreSQL · GitHub · AWS.
+- Infinite horizontal scroll (~40s loop), pauses on hover, 120px fade masks on both edges.
+- Label Node/Express/Python/FastAPI with a tiny "soon" pill on hover (Next.js is first).
+- Mobile: same strip, 20px logos.
+
+### 13.3 Waitlist (new board: `Waitlist`)
+Two surfaces, all states:
+1. **Inline pill form** used in hero (under the buttons, optional) and final CTA: one bordered pill,
+   email `<input>` with visible label (can be visually hidden), primary "Join" button inside the pill.
+2. **Modal** opened by every "Join waitlist" button: 480px wide, `#111` panel, 1px border, 16px radius,
+   dark overlay `rgba(0,0,0,0.7)` + 4px blur. Title "Get early access", one-line sub, email field,
+   optional "What will you deploy?" choice chips (Internal tool / Client dashboard / SaaS MVP / Other),
+   primary button, small print "One email when your spot opens. No spam."
+- States to draw: **idle**, **focused**, **invalid email** (inline red `#e5484d` message), **loading**
+  (spinner in button, inputs disabled), **success** (check icon, "You're on the list. Check your inbox
+  to confirm."), **already on list** (neutral message), **server error** (retry).
+- Desktop + mobile (mobile modal becomes a bottom sheet).
+
+### 13.4 Logo & brand assets (new board: `Brand`)
+- **Logomark:** a minimal geometric **doorway** built from 4–6 rectangles on a pixel grid, white on
+  black; must read at 16px. Show 3 options, then the chosen one at 16 / 32 / 64 / 256px.
+- **Wordmark:** `foyr` lowercase in Inter 510–600, tight tracking; lockup mark + wordmark.
+- **Favicon** (32px, dark and light tab), **Apple touch icon** (180px).
+- **OG image** 1200×630: black, doorway-light image on the right, logo + "Deploy the app you already
+  built. Login included." on the left.
+- Replace the text wordmark in header and footer of all boards with the new lockup.
+
+### 13.5 Docs template (new board: `Docs`, desktop 1440 + mobile 390, dark + light)
+- Top bar = site header variant with search field (⌘K hint) and "Dashboard" link.
+- Left sidebar (240px): groups **Getting started** (Introduction, Quickstart), **Concepts** (How auth
+  works, Roles & permissions, Deployments), **Reference** (SDK — JavaScript, SDK — Python, `foyr.json`),
+  **Architecture**, **FAQ**. Active item highlighted `#222`.
+- Article (max 720px): breadcrumb, h1, lead, h2/h3, paragraph, inline code, **code block with tabs +
+  copy button**, **callouts** (note / warning / tip — grey background with a small icon, amber only for
+  warning), a table, an image/diagram frame, "Previous / Next" cards, "Edit on GitHub" + last updated.
+- Right "On this page" TOC (active heading highlighted).
+- Sample content: the **Quickstart** page — 1) Join waitlist 2) Connect GitHub 3) Push 4) Invite a teammate 5) Read the user in code (`getUser`).
+- Search modal (⌘K): input, grouped results, keyboard hints.
+
+### 13.6 Pricing placeholder (new board: `Pricing`)
+- h1 "Free while we're in early access." + sub.
+- Three tier cards **Hobby / Pro / Team** with `[PRICE]` placeholders, feature lists, greyed with a
+  "Coming soon" pill; the whole row at 60% opacity.
+- Waitlist inline form below. Short FAQ (3 questions) about billing.
+
+### 13.7 404 (new board: `NotFound`)
+- Full-height black page, doorway-light image cropped narrow in the centre, h1 **"This door's locked."**,
+  sub "The page you're looking for isn't here.", buttons "Back home" / "Read the docs".
+
+### 13.8 Changelog (new board: `Changelog`)
+- Left: date column (sticky). Right: entries with title, tag pill (Product / Docs / Infra), short body.
+- First entry, 2026-09-26: "Foyr is being built" — one paragraph + link to docs.

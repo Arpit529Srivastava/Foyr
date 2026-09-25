@@ -8,8 +8,8 @@ the bottom. To change a decision, add a new ADR that supersedes the old one.
 ## ADR-001: Name and domain — Foyr on `foyr.online`
 **Date:** 2026-09-26 · **Status:** Accepted
 
-**Decision:** The product is called **Foyr**; the platform domain is `foyr.online`
-(apps at `<app>.foyr.online`).
+**Decision:** The product is called **Foyr**; the platform domain is `foyr.online`.
+(Customer app hostnames revised by [ADR-015](#adr-015-customer-apps-on-a-separate-domain).)
 
 **Why:** Short and brandable, suggests "the entrance to your app". `foyr.online` was the
 cheapest available option for the first year.
@@ -141,3 +141,22 @@ All required services (Fargate, CodeBuild, Aurora Serverless v2, SES, ACM) are a
 separately from the AWS product platform.
 
 **Why:** Fast to ship, free tier, and keeps marketing uptime independent of the platform.
+
+## ADR-015: Customer apps on a separate domain
+**Date:** 2026-09-26 · **Status:** Accepted · **Amends:** ADR-001, ADR-014
+
+**Decision:**
+- `foyr.online` → marketing site + docs (Vercel).
+- `app.foyr.online` → dashboard; `api.` / `auth.foyr.online` → foyrd.
+- Customer apps → `<app>.foyrapps.online` (`APPS_DOMAIN`), plus customer custom domains.
+
+**Why:** If customer apps ran on `*.foyr.online`, any app — i.e. untrusted customer code — could set
+cookies on `.foyr.online` (cookie tossing) and would count as *same-site* with the dashboard and auth
+endpoints, weakening SameSite/CSRF protection. Vercel (`vercel.app`), GitHub (`github.io`) and
+Netlify (`netlify.app`) separate customer content for the same reason. It also frees the apex for the
+Vercel-hosted marketing site.
+
+**Consequences:**
+- Buy `foyrapps.online` before Phase 0 (not needed for the website). Name can change; everything reads `APPS_DOMAIN`.
+- Add `foyrapps.online` to the Public Suffix List before public launch.
+- Reserved slugs list enforced at app creation (see system design §7).

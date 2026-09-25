@@ -11,7 +11,7 @@
 - [ ] Build: repo Dockerfile or Next.js template → CodeBuild → ECR
 - [ ] Deploy: ECS service per deployment, Cloud Map discovery, health check
 - [ ] authproxy as a plain router with proxy-level blue/green and rollback
-- [ ] `<app>.foyr.online` wildcard routing
+- [ ] Buy `APPS_DOMAIN` (foyrapps.online); `<app>.foyrapps.online` wildcard routing + reserved slugs
 - **Done when:** `git push` → live URL, working and repeatable.
 
 ## Phase 1 — Auth-as-a-service (~4 weeks)

@@ -17,6 +17,7 @@ zero auth code and no AWS console.
 | [Decisions (ADRs)](docs/architecture/decisions.md) | Key technical choices and why |
 | [Roadmap](docs/roadmap.md) | Phases and exit criteria |
 | [Website design brief](docs/website/design-brief.md) | Look, feel, sections and motion for foyr.online |
+| [Claude Design prompt, round 2](docs/website/claude-design-round-2-prompt.md) | What to paste into Claude Design next |
 
 ## Stack at a glance
 

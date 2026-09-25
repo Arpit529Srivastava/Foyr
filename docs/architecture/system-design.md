@@ -1,6 +1,16 @@
 # Foyr — System Design
 
-Status: **approved** (2026-09-26) · Region: **AWS ap-south-1 (Mumbai)** · Platform domain: `foyr.online`
+Status: **approved** (2026-09-26, domains revised same day — see ADR-015) · Region: **AWS ap-south-1 (Mumbai)**
+
+| Domain | Serves | Hosted on |
+|---|---|---|
+| `foyr.online` (+ `www`) | Marketing site and public docs | Vercel |
+| `app.foyr.online` | Dashboard (**web**) | AWS |
+| `api.foyr.online`, `auth.foyr.online` | **foyrd** (API, login) | AWS |
+| `<app>.foyrapps.online` | Customer apps via **authproxy** | AWS |
+| customer custom domains | Customer apps via **authproxy** | AWS |
+
+In code these are `PLATFORM_DOMAIN` (`foyr.online`) and `APPS_DOMAIN` (`foyrapps.online`). Never hardcode either.
 
 This document describes how Foyr works end to end. Decisions and the reasoning behind
 them are recorded in [decisions.md](./decisions.md).
@@ -11,9 +21,9 @@ them are recorded in [decisions.md](./decisions.md).
                      DEVELOPERS (our customers)               END USERS (their teammates/clients)
                               │                                          │
                               ▼                                          ▼
-   ┌──────────── Route53: foyr.online, *.foyr.online, customer CNAMEs ─────────────────┐
+   ┌──────── Route53: app./api./auth.foyr.online, *.foyrapps.online, customer CNAMEs ──┐
    │                                   ALB (TLS via ACM)                               │
-   │   foyr.online ──► web        api./auth.foyr.online ──► foyrd     *.foyr.online    │
+   │ app.foyr.online ─► web     api./auth.foyr.online ──► foyrd   *.foyrapps.online  │
    │                                                                  + custom domains │
    └──────┬──────────────────────────────┬──────────────────────────────────┬──────────┘
           ▼                              ▼                                  ▼
@@ -42,7 +52,9 @@ Everything else is a managed AWS service. This is deliberately *not* a microserv
 architecture — see [ADR-005](./decisions.md#adr-005-three-deployables-not-microservices).
 
 > The marketing site and public docs (`foyr.online` landing + `/docs`) are hosted
-> separately on Vercel. The diagram above covers the product platform.
+> separately on Vercel. The diagram above covers the product platform. Customer apps live on
+> a **separate registrable domain** (`foyrapps.online`) so they can never set cookies on, or be
+> treated as same-site with, the dashboard and auth — see [ADR-015](./decisions.md#adr-015-customer-apps-on-a-separate-domain).
 
 ## 2. Components
 
@@ -98,11 +110,11 @@ Service discovery: authproxy reaches tenant tasks through **AWS Cloud Map** priv
 ### 4c. End user opens a protected app
 
 ```
-1. GET https://acme-crm.foyr.online/reports              (no cookie)
+1. GET https://acme-crm.foyrapps.online/reports          (no cookie)
 2. authproxy ─► 302 https://auth.foyr.online/login?app=acme-crm&return=/reports
 3. user enters email ─► foyrd: is this email a member/invitee of this app?
                      ─► SES sends magic link (15 min, single use)
-4. click link ─► foyrd verifies ─► 302 https://acme-crm.foyr.online/__foyr/callback?code=…
+4. click link ─► foyrd verifies ─► 302 https://acme-crm.foyrapps.online/__foyr/callback?code=…
 5. authproxy exchanges code (single use, 60 s) ─► sets __foyr_session
    (host-only, HttpOnly, Secure, SameSite=Lax)
 6. each subsequent request:
@@ -112,8 +124,9 @@ Service discovery: authproxy reaches tenant tasks through **AWS Cloud Map** priv
    ─► forwards to the live deployment
 ```
 
-The per-host callback (steps 4–5) is what makes **custom domains** work: a cookie on
-`foyr.online` can't be read on `crm.acme.com`, so each app host gets its own cookie.
+The per-host callback (steps 4–5) gives every app host its own host-only cookie. That is what
+makes **custom domains** work (a cookie on `foyr.online` can't be read on `crm.acme.com`), and it
+keeps apps isolated from each other even on the shared apps domain.
 
 **Access modes** per app:
 
@@ -149,7 +162,7 @@ The SDK is a thin verifier (<100 lines per language). **Nothing is injected into
 
 ### 4f. Custom domains (Phase 3)
 
-Developer adds `crm.acme.com` → Foyr shows a CNAME to `acme-crm.foyr.online` plus an ACM
+Developer adds `crm.acme.com` → Foyr shows a CNAME to `acme-crm.foyrapps.online` plus an ACM
 validation record → ACM issues the certificate → attached to the ALB via SNI → hostname
 added to the proxy routing table.
 
@@ -210,6 +223,12 @@ audit_log      id, actor_id, app_id, action, data jsonb, at
 - CodeBuild's role is scoped to pushing to that app's ECR repository; clone tokens expire in 1 h.
 - authproxy strips spoofed `X-Foyr-*` headers; apps can verify `X-Foyr-Assertion` against
   Foyr's published public keys (JWKS).
+- Customer apps are served from `APPS_DOMAIN`, a different registrable domain from the dashboard and
+  auth (`PLATFORM_DOMAIN`), so a malicious app cannot set cookies on `.foyr.online` or ride on
+  same-site requests to the dashboard. Submit `foyrapps.online` to the Public Suffix List before
+  public launch so browsers also isolate apps from each other.
+- App slugs are validated (`[a-z0-9-]{3,40}`) and a reserved list is enforced: `app`, `api`, `auth`,
+  `www`, `docs`, `admin`, `status`, `mail`, `static`, `cdn`, `foyr`.
 - Magic-link and invite tokens are stored hashed and are single use; login endpoints are rate limited.
 - Session tokens: ES256 JWTs, 12 h expiry, signing key in KMS/SSM with rotation.
 
