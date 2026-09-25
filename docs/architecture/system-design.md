@@ -1,6 +1,6 @@
-# Foyr — System Design
+# Foyr: System Design
 
-Status: **approved** (2026-09-26, domains revised same day — see ADR-015) · Region: **AWS ap-south-1 (Mumbai)**
+Status: **approved** (2026-09-26, domains revised same day; see ADR-015) · Region: **AWS ap-south-1 (Mumbai)**
 
 | Domain | Serves | Hosted on |
 |---|---|---|
@@ -49,12 +49,12 @@ them are recorded in [decisions.md](./decisions.md).
 
 Three deployables (**web**, **foyrd**, **authproxy**) and one platform database.
 Everything else is a managed AWS service. This is deliberately *not* a microservice
-architecture — see [ADR-005](./decisions.md#adr-005-three-deployables-not-microservices).
+architecture; see [ADR-005](./decisions.md#adr-005-three-deployables-not-microservices).
 
 > The marketing site and public docs (`foyr.online` landing + `/docs`) are hosted
 > separately on Vercel. The diagram above covers the product platform. Customer apps live on
 > a **separate registrable domain** (`foyrapps.online`) so they can never set cookies on, or be
-> treated as same-site with, the dashboard and auth — see [ADR-015](./decisions.md#adr-015-customer-apps-on-a-separate-domain).
+> treated as same-site with, the dashboard and auth. See [ADR-015](./decisions.md#adr-015-customer-apps-on-a-separate-domain).
 
 ## 2. Components
 
@@ -62,7 +62,7 @@ architecture — see [ADR-005](./decisions.md#adr-005-three-deployables-not-micr
 |---|---|---|
 | **web** | Next.js dashboard: apps, deploy, build logs, env vars, members & roles, domains | 1–2 Fargate tasks |
 | **foyrd** | Go control plane: REST API, developer login (GitHub), end-user login (magic link), invites, deploy orchestration via a Postgres job queue, GitHub webhooks, config feed for the proxy | 2+ stateless replicas; jobs claimed with `FOR UPDATE SKIP LOCKED` |
-| **authproxy** | Go gatekeeper on every tenant request: verifies session, enforces access, injects identity headers, routes to the live deployment, (later) wakes sleeping apps | 2–N stateless replicas, autoscaled. **Never calls foyrd or the DB per request** — serves from an in-memory config cache |
+| **authproxy** | Go gatekeeper on every tenant request: verifies session, enforces access, injects identity headers, routes to the live deployment, (later) wakes sleeping apps | 2–N stateless replicas, autoscaled. **Never calls foyrd or the DB per request**; serves from an in-memory config cache |
 | **CodeBuild** | Clone → build image → push to ECR. One isolated machine per build | Managed, per-minute |
 | **Tenant apps** | Customer containers, one ECS service per deployment. Reachable **only** from authproxy | Per-app autoscaling |
 | **Platform Postgres** | Foyr's own data | RDS `db.t4g.micro` to start |
@@ -236,7 +236,7 @@ audit_log      id, actor_id, app_id, action, data jsonb, at
 
 | Failure | Behaviour |
 |---|---|
-| foyrd down | **Apps keep serving** — proxy uses its last config; new logins pause |
+| foyrd down | **Apps keep serving**: proxy uses its last config; new logins pause |
 | A proxy replica dies | ALB routes around it (2+ replicas across AZs) |
 | Build fails | Deployment marked failed with logs; previous version stays live |
 | New version fails health check | Green torn down automatically; blue keeps serving |

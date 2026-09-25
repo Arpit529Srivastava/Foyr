@@ -5,7 +5,7 @@ the bottom. To change a decision, add a new ADR that supersedes the old one.
 
 ---
 
-## ADR-001: Name and domain — Foyr on `foyr.online`
+## ADR-001: Name and domain: Foyr on `foyr.online`
 **Date:** 2026-09-26 · **Status:** Accepted
 
 **Decision:** The product is called **Foyr**; the platform domain is `foyr.online`.
@@ -17,7 +17,7 @@ cheapest available option for the first year.
 **Consequences:**
 - `.online` has a weaker email reputation, so magic-link email must use a dedicated sending
   subdomain (`mail.foyr.online`) with SPF, DKIM and DMARC from day one.
-- The domain must never be hardcoded — everything reads `PLATFORM_DOMAIN` so we can move later.
+- The domain must never be hardcoded; everything reads `PLATFORM_DOMAIN` so we can move later.
 - An unrelated company (Foyr, interior-design software) owns `foyr.com` / `foyr.in`. Do a
   trademark check before any significant brand spend.
 
@@ -80,7 +80,7 @@ enables proxy-level blue/green and scale-to-zero.
 **Alternatives rejected:** build-time SDK injection (fragile, JS-only, unprotected by
 default); ALB `authenticate-oidc` (limited login UX, per-ALB rule quotas, hard to pass roles).
 
-## ADR-007: Builds — own Next.js template first, Railpack later
+## ADR-007: Builds: own Next.js template first, Railpack later
 **Date:** 2026-09-26 · **Status:** Accepted · **Supersedes:** original spec's Nixpacks choice
 
 **Decision:** Phase 0 builds use the repo's own `Dockerfile` if present, otherwise a
@@ -150,7 +150,7 @@ separately from the AWS product platform.
 - `app.foyr.online` → dashboard; `api.` / `auth.foyr.online` → foyrd.
 - Customer apps → `<app>.foyrapps.online` (`APPS_DOMAIN`), plus customer custom domains.
 
-**Why:** If customer apps ran on `*.foyr.online`, any app — i.e. untrusted customer code — could set
+**Why:** If customer apps ran on `*.foyr.online`, any app (i.e. untrusted customer code) could set
 cookies on `.foyr.online` (cookie tossing) and would count as *same-site* with the dashboard and auth
 endpoints, weakening SameSite/CSRF protection. Vercel (`vercel.app`), GitHub (`github.io`) and
 Netlify (`netlify.app`) separate customer content for the same reason. It also frees the apex for the
@@ -161,7 +161,7 @@ Vercel-hosted marketing site.
 - Add `foyrapps.online` to the Public Suffix List before public launch.
 - Reserved slugs list enforced at app creation (see system design §7).
 
-## ADR-016: Website stack — Next.js MDX docs, Resend waitlist
+## ADR-016: Website stack: Next.js MDX docs, Resend waitlist
 **Date:** 2026-09-26 · **Status:** Accepted · **Amends:** ADR-014, design brief §3 (Fumadocs)
 
 **Decision:** `site/` is Next.js 16 + Tailwind v4 + Motion. Docs are plain MDX pages under
