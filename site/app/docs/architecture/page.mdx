@@ -1,0 +1,39 @@
+export const metadata = {
+  title: "Architecture",
+  description: "What runs where: the control plane, the auth proxy, builds, your app and the data.",
+};
+
+# Architecture
+
+<Lead>Foyr is deliberately small: three services, one database, and managed AWS for everything else.</Lead>
+
+## The pieces
+
+| Piece | What it does |
+| --- | --- |
+| **Dashboard** (`app.foyr.online`) | Where you connect repos, see builds, manage members, domains and environment variables. |
+| **Control plane** (`api.` / `auth.foyr.online`) | The API, developer login with GitHub, magic-link login for your users, invites, and the deploy pipeline. |
+| **Auth proxy** | Sits in front of every app. Checks sessions and roles, adds identity headers, routes to the live version. |
+| **Builds** | Each deploy builds in its own isolated machine and produces a container image. |
+| **Your app** | Runs as containers on AWS Fargate. Only the proxy can reach it. |
+
+<ProxyDiagram caption="The proxy handles every request to every app; the control plane only handles developers and logins." />
+
+## Why the proxy is separate
+
+The proxy is on the path of every request to every app, so it is built to keep working on its own. It checks sessions with a public key and keeps an in-memory copy of which app runs where and who may open it. If the control plane is down, apps keep serving; only new logins wait.
+
+## Isolation
+
+- **Network:** apps can only receive traffic from the proxy, and cannot reach each other or Foyr's internal services.
+- **Credentials:** apps run with no cloud credentials of their own.
+- **Domains:** apps live on `foyrapps.online`, a different domain from Foyr itself (`foyr.online`), so an app can never set cookies for the dashboard or login pages.
+- **Builds:** your code builds in a fresh machine each time, with read-only access to your repo that expires within the hour.
+
+## Zero-downtime deploys
+
+A new version runs next to the live one. Only after it passes its health check does the proxy switch traffic, which is also what makes rollback instant: it is the same switch in reverse.
+
+## Where your data lives
+
+Everything runs in AWS Mumbai (`ap-south-1`). Environment variable values are stored encrypted and are never written to logs or to Foyr's database.

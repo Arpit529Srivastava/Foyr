@@ -1,0 +1,92 @@
+export const metadata = {
+  title: "Quickstart",
+  description: "Go from a GitHub repo to a private app your teammates can open, in five steps.",
+};
+
+# Quickstart
+
+<Lead>Go from a GitHub repo to a private app your teammates can open, in five steps.</Lead>
+
+<Callout type="note">Foyr is in early access. You need an invite from the waitlist before you can connect a repo.</Callout>
+
+## Before you start
+
+You need a GitHub account and an app in a repository. Foyr builds Next.js today. Node and Python are next, and any app with a `Dockerfile` works.
+
+## 1. Join the waitlist
+
+Sign up at [foyr.online](/) with the email you use for GitHub. We're onboarding in small batches and email you when your spot opens.
+
+## 2. Connect GitHub
+
+In the dashboard, choose **New app** and install the Foyr GitHub app on the repositories you pick. Access is read-only and per repo.
+
+<Callout type="tip">Only pick the repos you want to deploy. You can add more later from your GitHub settings.</Callout>
+
+## 3. Push
+
+Push to your default branch. Your app gets a URL like `acme-crm.foyrapps.online`.
+
+```bash title="Terminal"
+git push origin main
+```
+
+### What happens on push
+
+| Stage | What Foyr does |
+| --- | --- |
+| Detect | Finds your framework and package manager. |
+| Build | Builds your app into a container image. |
+| Health check | Starts the new version and waits for it to respond. |
+| Go live | Switches traffic with zero downtime. |
+
+<Callout type="warning">If the health check fails, the new version never goes live. The previous version keeps serving, and the build log shows why.</Callout>
+
+## 4. Invite a teammate
+
+Open **Members**, add their email and pick a role: owner, admin, member or viewer. They get a magic link and sign in without a password.
+
+<ProxyDiagram />
+
+## 5. Read the user in code
+
+The proxy passes the signed-in user to your app. Read it with `getUser`:
+
+<CodeTabs labels={["Next.js", "Express", "FastAPI"]}>
+
+```ts
+import { getUser } from "@foyr/auth";
+
+export async function GET(req: Request) {
+  const user = getUser(req); // { id, email, role }
+  return Response.json({ hello: user.email });
+}
+```
+
+```js
+import express from "express";
+import { getUser } from "@foyr/auth";
+
+const app = express();
+
+app.get("/hello", (req, res) => {
+  const user = getUser(req); // { id, email, role }
+  res.json({ hello: user.email });
+});
+```
+
+```python
+from fastapi import FastAPI, Request
+from foyr_auth import get_user
+
+app = FastAPI()
+
+@app.get("/hello")
+async def hello(request: Request):
+    user = get_user(request)  # { id, email, role }
+    return {"hello": user.email}
+```
+
+</CodeTabs>
+
+The SDK is optional. Without it, read the same user from the request header the proxy adds. See [How auth works](/docs/auth#headers-your-app-receives).

@@ -1,0 +1,84 @@
+export const metadata = {
+  title: "SDK — JavaScript",
+  description: "Reference for @foyr/auth: getUser, hasPermission and verifying the proxy's signed assertion.",
+};
+
+# SDK — JavaScript
+
+<Lead>`@foyr/auth` reads the user the Foyr proxy attached to a request. It is small, has no dependencies and is optional.</Lead>
+
+<Callout type="note">The SDK ships with early access. Names below are final in intent but may still change before launch.</Callout>
+
+## Install
+
+```bash title="Terminal"
+npm install @foyr/auth
+```
+
+Works with anything that has a `Request` or a Node `IncomingMessage`: Next.js route handlers and server components, Express, Hono, Fastify.
+
+## getUser(req)
+
+Returns the signed-in user, or `null` for anonymous visitors of a public app.
+
+```ts title="app/api/me/route.ts"
+import { getUser } from "@foyr/auth";
+
+export async function GET(req: Request) {
+  const user = getUser(req);
+  if (!user) return new Response("Sign in first", { status: 401 });
+  return Response.json(user);
+}
+```
+
+```ts title="Types"
+type Role = "owner" | "admin" | "member" | "viewer";
+
+type FoyrUser = {
+  id: string;     // stable across apps, e.g. "usr_8f2k1c"
+  email: string;  // lowercased
+  role: Role;     // role in this app
+};
+
+function getUser(req: Request | IncomingMessage): FoyrUser | null;
+```
+
+In a Next.js server component, pass the incoming headers instead:
+
+```tsx title="app/page.tsx"
+import { headers } from "next/headers";
+import { getUser } from "@foyr/auth";
+
+export default async function Page() {
+  const user = getUser(await headers());
+  return <p>Signed in as {user?.email}</p>;
+}
+```
+
+## hasPermission(user, action)
+
+Returns `true` if the user's role meets the minimum role for `action` in [`foyr.json`](/docs/foyr-json). Unknown actions require `admin`. A `null` user never has permission.
+
+```ts
+hasPermission(user, "reports:export"); // true for member, admin, owner
+```
+
+## verifyUser(req)
+
+`getUser` trusts the headers, which is safe because only the proxy can reach your app. If you want cryptographic proof, `verifyUser` checks the `X-Foyr-Assertion` JWT against Foyr's published keys and your app's audience.
+
+```ts
+import { verifyUser } from "@foyr/auth";
+
+const user = await verifyUser(req); // throws if the assertion is missing or invalid
+```
+
+## Local development
+
+Outside Foyr there is no proxy, so `getUser` returns `null`. Set `FOYR_DEV_USER` to pretend to be someone:
+
+```bash title=".env.local"
+FOYR_DEV_USER=priya@acme.in:admin
+```
+
+`FOYR_DEV_USER` is ignored when your app runs on Foyr.

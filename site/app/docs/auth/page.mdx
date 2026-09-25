@@ -1,0 +1,57 @@
+export const metadata = {
+  title: "How auth works",
+  description: "The Foyr proxy, magic-link login, sessions and the identity headers your app receives.",
+};
+
+# How auth works
+
+<Lead>Login happens before a request ever reaches your app. The Foyr proxy checks who is asking, then forwards the request with the user attached.</Lead>
+
+## The proxy
+
+Every app on Foyr sits behind the Foyr proxy. On each request the proxy:
+
+1. Checks for a valid session cookie for that app's hostname.
+2. If there isn't one, sends the visitor to the Foyr login page.
+3. Checks that the signed-in person is a member of **this** app, and looks up their role.
+4. Removes any `X-Foyr-*` headers the visitor sent, then adds trusted ones.
+5. Forwards the request to your app's live version.
+
+<ProxyDiagram />
+
+Because the check happens in the proxy, an app that never mentions auth is still private. Removing someone from an app, or changing their role, takes effect within a few seconds.
+
+## Magic-link login
+
+There are no passwords. A visitor enters their email; if they were invited to the app, Foyr emails them a sign-in link. The link works once and expires after 15 minutes.
+
+<Callout type="tip">People only need an email address. They never create a Foyr account or a GitHub account to use your app.</Callout>
+
+## Sessions
+
+After the link is clicked, the proxy sets a session cookie on your app's own hostname — `acme-crm.foyrapps.online`, or your custom domain. Sessions last 12 hours.
+
+- The cookie is `HttpOnly`, `Secure` and `SameSite=Lax`.
+- Each app host has its own cookie, so signing in to one app does not sign you in to another.
+
+## Headers your app receives
+
+For signed-in visitors, the proxy adds these headers to every request:
+
+| Header | Example | Notes |
+| --- | --- | --- |
+| `X-Foyr-User-Id` | `usr_8f2k1c` | Stable per person across apps. |
+| `X-Foyr-Email` | `priya@acme.in` | Lowercased. |
+| `X-Foyr-Role` | `admin` | `owner`, `admin`, `member` or `viewer`. |
+| `X-Foyr-Assertion` | `eyJhbGciOi…` | Short-lived signed token with the same data. |
+
+Reading the plain headers is fine because only the proxy can reach your app. If you want proof, verify `X-Foyr-Assertion`: it is an ES256 JWT, signed by Foyr, with your app as the audience. The [SDK](/docs/sdk/javascript) does this for you.
+
+## Access modes
+
+| Mode | Who can open the app |
+| --- | --- |
+| `private` (default) | Only invited members. Everyone else is sent to login. |
+| `public` | Anyone. If the visitor is signed in, the identity headers are still added. |
+
+Set the mode in the dashboard or in [`foyr.json`](/docs/foyr-json).

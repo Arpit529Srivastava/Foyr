@@ -1,0 +1,51 @@
+export const metadata = {
+  title: "Deployments",
+  description: "How Foyr builds your repo, ships it behind a health check, rolls back, and serves custom domains.",
+};
+
+# Deployments
+
+<Lead>Every push to your default branch becomes a deployment. A new version only takes traffic after it passes a health check.</Lead>
+
+## What gets built
+
+Foyr looks at your repository and picks a build:
+
+- **Your `Dockerfile`**, if the repo has one at the root. Foyr uses it as is.
+- **Next.js**, otherwise. Foyr detects Next.js and your package manager (npm, pnpm or yarn) from the lockfile and builds a small production image.
+
+Node.js (Express) and Python (FastAPI) detection are next.
+
+Your app must listen on the port in the `PORT` environment variable.
+
+## The deploy, step by step
+
+1. **Queued.** GitHub tells Foyr about the push.
+2. **Building.** Your repo is built in an isolated build machine. Logs stream to the dashboard.
+3. **Starting.** The new version starts next to the one that's live.
+4. **Health check.** Foyr requests `/api/health` (or `/` if that route doesn't exist) and waits for a `2xx`.
+5. **Live.** Traffic switches to the new version with zero downtime. The old one is drained after five minutes.
+
+<Callout type="warning">If the build or health check fails, nothing changes for your users. The previous version keeps serving and the deployment is marked **Failed** with its logs.</Callout>
+
+## Rolling back
+
+Every live deployment can be restored with **Roll back**. Rollback only moves traffic to a version that was already built, so it takes seconds.
+
+## Environment variables
+
+Add variables in **Settings → Environment**. Values are encrypted and injected when your app starts; they are never shown in build logs. Changing a variable redeploys the current version.
+
+## URLs
+
+Each app gets `https://<app>.foyrapps.online`. Customer apps live on `foyrapps.online`, not on `foyr.online`, so an app can never read or set cookies for the Foyr dashboard.
+
+## Custom domains
+
+1. In **Domains**, add a hostname such as `crm.acme.com`.
+2. Create the two DNS records Foyr shows you: a `CNAME` to your app's `foyrapps.online` host, and one to validate the certificate.
+3. Foyr issues a TLS certificate automatically. The domain goes live when DNS resolves, usually within minutes.
+
+## Region and sleep
+
+Apps run on AWS in Mumbai (`ap-south-1`). Apps that get no traffic for a while will be able to sleep and wake on the next request; this is planned for a later release.

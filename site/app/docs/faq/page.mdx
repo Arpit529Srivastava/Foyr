@@ -1,0 +1,44 @@
+export const metadata = {
+  title: "FAQ",
+  description: "Short answers to what developers ask first about Foyr.",
+};
+
+# FAQ
+
+<Lead>Short answers to what developers ask first.</Lead>
+
+## What kind of apps can I deploy?
+
+Next.js first. Node and Python are next, and any app with a `Dockerfile` works.
+
+## Do I need to change my code to get login?
+
+No. The proxy handles it before requests reach your app. The SDK is optional; use it when your app needs to know who is asking.
+
+## Who can see my app?
+
+Only people you invite, unless you make it public.
+
+## Do the people I invite need an account?
+
+No. They sign in with a link sent to their email. No password, no GitHub account.
+
+## Where is my app hosted?
+
+On AWS in Mumbai, `ap-south-1`.
+
+## Can I use my own domain?
+
+Yes. Add it under **Domains**, create the DNS records Foyr shows you, and TLS is set up automatically.
+
+## Can I bring my own database?
+
+Yes. Set its connection string as an environment variable. Managed Postgres for each app is planned.
+
+## How much will it cost?
+
+Free during early access. Simple pricing at launch. See [Pricing](/pricing).
+
+## When can I use it?
+
+[Join the waitlist](/). We're onboarding in small batches.

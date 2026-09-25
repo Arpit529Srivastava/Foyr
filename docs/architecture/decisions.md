@@ -160,3 +160,18 @@ Vercel-hosted marketing site.
 - Buy `foyrapps.online` before Phase 0 (not needed for the website). Name can change; everything reads `APPS_DOMAIN`.
 - Add `foyrapps.online` to the Public Suffix List before public launch.
 - Reserved slugs list enforced at app creation (see system design §7).
+
+## ADR-016: Website stack — Next.js MDX docs, Resend waitlist
+**Date:** 2026-09-26 · **Status:** Accepted · **Amends:** ADR-014, design brief §3 (Fumadocs)
+
+**Decision:** `site/` is Next.js 16 + Tailwind v4 + Motion. Docs are plain MDX pages under
+`app/docs/` rendered with Next's built-in MDX support and a custom shell (sidebar, table of
+contents, ⌘K search, light/dark), not Fumadocs. Waitlist sign-ups go to a Resend audience through
+a server action. Product mockups are generated from the Claude Design canvas by `scripts/dc2jsx.py`.
+
+**Why:** The current Fumadocs release pulls in a new build toolchain (rolldown, satteri) for what is
+ten pages; a custom shell matches the approved design exactly and has no framework to track.
+Resend needs no database and is also the planned magic-link email provider.
+
+**Consequences:** Docs search is a static index built from the MDX files at build time (fine for
+tens of pages; revisit if docs grow past ~100). New docs pages must be added to `lib/docs-nav.ts`.

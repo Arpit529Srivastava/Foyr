@@ -6,7 +6,7 @@ Foyr hosts apps you built yourself (with Cursor, Claude Code or by hand) and put
 door on each one: private by default, invite people by email, gate features by role — with
 zero auth code and no AWS console.
 
-> Status: pre-Phase 0. Design approved; website and docs in progress.
+> Status: pre-Phase 0. Website and docs built in [`site/`](site/) (Next.js, deployed on Vercel).
 
 ## Documentation
 

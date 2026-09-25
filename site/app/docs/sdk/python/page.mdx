@@ -1,0 +1,49 @@
+export const metadata = {
+  title: "SDK — Python",
+  description: "Reference for foyr-auth: get_user and has_permission for FastAPI, Flask and Django.",
+};
+
+# SDK — Python
+
+<Lead>`foyr-auth` is the Python twin of the JavaScript SDK: read the signed-in user and check permissions.</Lead>
+
+<Callout type="note">Python apps build on Foyr through a `Dockerfile` today; automatic Python detection is next. The SDK works either way.</Callout>
+
+## Install
+
+```bash title="Terminal"
+pip install foyr-auth
+```
+
+## get_user(request)
+
+Returns a `FoyrUser` or `None`. Accepts a Starlette/FastAPI `Request`, a Flask `request` or a Django `HttpRequest`.
+
+```python title="main.py"
+from fastapi import FastAPI, HTTPException, Request
+from foyr_auth import get_user
+
+app = FastAPI()
+
+@app.get("/me")
+async def me(request: Request):
+    user = get_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Sign in first")
+    return {"id": user.id, "email": user.email, "role": user.role}
+```
+
+## has_permission(user, action)
+
+Same rules as JavaScript: the minimum role comes from `foyr.json`, unknown actions require `admin`, and `None` never has permission.
+
+```python
+from foyr_auth import has_permission
+
+if has_permission(user, "billing:edit"):
+    ...
+```
+
+## Local development
+
+Set `FOYR_DEV_USER=priya@acme.in:admin` to act as a user when running outside Foyr.

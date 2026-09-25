@@ -1,0 +1,72 @@
+export const metadata = {
+  title: "Roles & permissions",
+  description: "Invite people by email and give each one a role: owner, admin, member or viewer.",
+};
+
+# Roles & permissions
+
+<Lead>Invite people by email and give each one a role. Gate features in your code with one function call.</Lead>
+
+## The four roles
+
+Roles are ordered: each one can do everything the role below it can.
+
+| Role | Typical use | In the Foyr dashboard |
+| --- | --- | --- |
+| `owner` | You | Everything, including deleting the app |
+| `admin` | A co-builder | Deploy, roll back, manage members and env vars |
+| `member` | A teammate who uses the app | Open the app |
+| `viewer` | A client who needs to look | Open the app |
+
+`member` and `viewer` differ only inside **your** app: you decide what each can do with `hasPermission`.
+
+## Inviting people
+
+Open **Members**, add one or more emails and pick a role. Each person gets an email with a sign-in link. Until they use it, they show as **Invited**. Removing someone, or changing their role, applies within a few seconds.
+
+## Gating a feature
+
+Name the actions your app cares about and the minimum role for each in [`foyr.json`](/docs/foyr-json):
+
+```json title="foyr.json"
+{
+  "permissions": {
+    "reports:export": "member",
+    "billing:edit": "admin"
+  }
+}
+```
+
+Then check them in code:
+
+<CodeTabs labels={["Next.js", "FastAPI"]}>
+
+```ts
+import { getUser, hasPermission } from "@foyr/auth";
+
+export async function GET(req: Request) {
+  const user = getUser(req);
+  if (!hasPermission(user, "reports:export")) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  return Response.json(await exportReports());
+}
+```
+
+```python
+from fastapi import HTTPException, Request
+from foyr_auth import get_user, has_permission
+
+@app.get("/reports/export")
+async def export(request: Request):
+    user = get_user(request)
+    if not has_permission(user, "reports:export"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return await export_reports()
+```
+
+</CodeTabs>
+
+An action that isn't listed in `foyr.json` requires `admin`. That way a typo fails closed.
+
+<Callout type="note">Custom roles beyond these four are not planned for the first release.</Callout>

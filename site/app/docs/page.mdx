@@ -1,0 +1,40 @@
+export const metadata = {
+  title: "Introduction",
+  description: "Foyr hosts the app you already wrote and puts a front door on it: login, invites and roles, with no auth code.",
+};
+
+# Introduction
+
+<Lead>Foyr hosts the app you already wrote and puts a front door on it: private by default, invite people by email, gate features by role. No auth code, no AWS console.</Lead>
+
+<Callout type="note">Foyr is in early access. Everything on these pages describes how Foyr works as we build it; details can change before launch. [Join the waitlist](/) to get a spot.</Callout>
+
+## Who Foyr is for
+
+You built something — an internal tool, a client dashboard, a SaaS MVP — often with Cursor or Claude Code. Now a few people need to use it, and only those people. Today that means a host, then an auth provider, then a permissions system, then the glue between them.
+
+Foyr is all of it in one push:
+
+- **Deploy from GitHub.** Every push to your default branch builds and ships, behind a health check.
+- **Login in front of your app.** A magic-link login page sits in front of every app. You never write one.
+- **Invites, per app.** Add teammates or clients by email. Access to one app grants nothing on another.
+- **Four roles.** Owner, admin, member and viewer. Gate features with one function call.
+
+## How it works in one picture
+
+Every request to your app goes through the Foyr proxy first. The proxy checks that the visitor is signed in and invited, then forwards the request with the user attached.
+
+<ProxyDiagram />
+
+Your app can ignore auth entirely and still be private, or read the user in one line when it needs to know who is asking. See [How auth works](/docs/auth).
+
+## What Foyr is not
+
+- **Not an AI app generator.** Bring code you already have.
+- **Not a general-purpose cloud.** One region (AWS Mumbai), containers only, fixed roles. Simple on purpose.
+
+## Next steps
+
+- [Quickstart](/docs/quickstart): repo to private URL in five steps.
+- [How auth works](/docs/auth): the proxy, magic links and sessions.
+- [Architecture](/docs/architecture): what runs where.

@@ -1,0 +1,33 @@
+export const metadata = {
+  title: "foyr.json",
+  description: "Optional config file for access mode, permissions and health checks.",
+};
+
+# foyr.json
+
+<Lead>An optional file at the root of your repo. Without it, Foyr uses safe defaults: private app, health check on `/api/health`.</Lead>
+
+```json title="foyr.json"
+{
+  "access": "private",
+  "healthCheck": "/api/health",
+  "permissions": {
+    "reports:export": "member",
+    "billing:edit": "admin"
+  }
+}
+```
+
+## Fields
+
+| Field | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `access` | `"private"` or `"public"` | `"private"` | Who can open the app. See [access modes](/docs/auth#access-modes). |
+| `healthCheck` | path | `"/api/health"`, then `"/"` | Route that must return `2xx` before a new version goes live. |
+| `permissions` | object | `{}` | Action name → minimum role, used by `hasPermission`. |
+
+Settings in the dashboard override `foyr.json` until the next deploy that changes the file.
+
+## Permission names
+
+Use any string; `resource:verb` reads well. Roles are `owner`, `admin`, `member` and `viewer`, each including the ones after it. Actions not listed require `admin`.

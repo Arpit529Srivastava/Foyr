@@ -1,9 +1,12 @@
 # Roadmap
 
 ## Now — Website & docs (Vercel)
-- [ ] Marketing site at `foyr.online`
-- [ ] Public docs section
-- [ ] Waitlist / early access sign-up
+- [x] Marketing site built (`site/`): home, pricing, changelog, 404, privacy, terms
+- [x] Public docs section: 10 pages, search, light/dark
+- [x] Waitlist form (Resend audience)
+- [ ] Deploy to Vercel and point `foyr.online` at it
+- [ ] Resend account + audience; set `RESEND_API_KEY` / `RESEND_AUDIENCE_ID`
+- [ ] Replace plain-language privacy/terms with reviewed versions before hosting customer apps
 
 ## Phase 0 — Bare deploy pipeline (~3 weeks)
 - [ ] OpenTofu: VPC, subnets, fck-nat, ALB, ECS cluster, ECR, RDS, CodeBuild project (ap-south-1)

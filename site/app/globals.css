@@ -1,0 +1,266 @@
+@import "tailwindcss";
+
+/* Foyr design tokens (from the Foyr design system on the Claude Design canvas). */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --color-ink: #000000;
+  --color-panel: #111111;
+  --color-card: #191919;
+  --color-raised: #222222;
+  --color-line: #2a2a2a;
+  --color-line-strong: #484848;
+  --color-fg: #eeeeee;
+  --color-dim: #b5b5b5;
+  --color-muted: #a3a3a3;
+  --color-subtle: #8a8a8a;
+  --color-faint: #7b7b7b;
+  --color-amber: #f5a524;
+  --color-danger: #e5484d;
+  --color-ok: #4ade80;
+
+  --ease-out-soft: cubic-bezier(0, 0, 0.2, 1);
+  --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --animate-pulse-dot: foyr-pulse 1.6s var(--ease-std) infinite;
+  --animate-fade: foyr-fade 300ms var(--ease-out-soft) both;
+  --animate-marquee: foyr-marquee 40s linear infinite;
+}
+
+@keyframes foyr-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes foyr-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Used by the generated Logs mockup (inline `animation: foyrLine …`). */
+@keyframes foyrLine {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes foyrPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes foyr-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes foyr-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@keyframes foyr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    color-scheme: dark;
+    background: var(--color-ink);
+  }
+  body {
+    background: var(--color-ink);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-amber);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: #f5a52455;
+  }
+}
+
+@layer components {
+  /* Card whose eyebrow label shimmers once on hover. */
+  .f-card {
+    transition: border-color 300ms var(--ease-std);
+  }
+  .f-card:hover {
+    border-color: #ffffff21;
+  }
+  .f-card:hover .f-shimmer {
+    background-image: linear-gradient(90deg, #666666, #ffffff, #666666);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: foyr-shimmer 800ms var(--ease-out-soft) 1 both;
+  }
+
+  .f-marquee:hover .f-track {
+    animation-play-state: paused;
+  }
+  .f-tech .f-soon {
+    opacity: 0;
+    transition: opacity 150ms var(--ease-std);
+  }
+  .f-tech:hover .f-soon {
+    opacity: 1;
+  }
+
+  .f-arrow svg {
+    transition: transform 150ms var(--ease-std);
+  }
+  .f-arrow:hover svg {
+    transform: translateX(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@keyframes foyr-menu {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ───────── Docs theme (dark default, light via [data-theme="light"]) ───────── */
+@theme inline {
+  --color-d-bg: var(--d-bg);
+  --color-d-fg: var(--d-fg);
+  --color-d-strong: var(--d-strong);
+  --color-d-muted: var(--d-muted);
+  --color-d-subtle: var(--d-subtle);
+  --color-d-card: var(--d-card);
+  --color-d-code: var(--d-code);
+  --color-d-border: var(--d-border);
+  --color-d-border2: var(--d-border2);
+  --color-d-callout: var(--d-callout);
+  --color-d-icon: var(--d-icon);
+  --color-d-warn: var(--d-warn);
+  --color-d-accent: var(--d-accent);
+  --color-d-inline: var(--d-inline);
+  --color-d-active: var(--d-active);
+  --color-d-header: var(--d-header);
+  --color-d-hair: var(--d-hair);
+}
+
+.docs {
+  --d-bg: #000000;
+  --d-fg: #eeeeee;
+  --d-strong: #ffffff;
+  --d-muted: #a3a3a3;
+  --d-subtle: #8a8a8a;
+  --d-card: #191919;
+  --d-code: #111111;
+  --d-border: #2a2a2a;
+  --d-border2: #484848;
+  --d-callout: #191919;
+  --d-icon: #b5b5b5;
+  --d-warn: #f5a524;
+  --d-accent: #f5a524;
+  --d-inline: #222222;
+  --d-active: #222222;
+  --d-header: #000000cc;
+  --d-hair: #ffffff14;
+  background: var(--d-bg);
+  color: var(--d-fg);
+  color-scheme: dark;
+}
+.docs[data-theme="light"] {
+  --d-bg: #fcfcfc;
+  --d-fg: #202020;
+  --d-strong: #000000;
+  --d-muted: #525252;
+  --d-subtle: #6b6b6b;
+  --d-card: #ffffff;
+  --d-code: #f6f6f6;
+  --d-border: #e8e8e8;
+  --d-border2: #cecece;
+  --d-callout: #f6f6f6;
+  --d-icon: #646464;
+  --d-warn: #a86200;
+  --d-accent: #a86200;
+  --d-inline: #f0f0f0;
+  --d-active: #e8e8e8;
+  --d-header: #fcfcfccc;
+  --d-hair: #0000000f;
+  color-scheme: light;
+}
+.docs[data-theme="light"] ::selection {
+  background: #a8620033;
+}
+.docs[data-theme="light"] .docs-cta {
+  background: #000000;
+  color: #ffffff;
+}
+
+/* Shiki dual-theme output from rehype-pretty-code */
+.docs [data-rehype-pretty-code-figure] code[data-theme] span {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style);
+}
+.docs[data-theme="light"] [data-rehype-pretty-code-figure] code[data-theme] span {
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style);
+}
+.docs figure[data-rehype-pretty-code-figure] pre {
+  overflow-x: auto;
+}
+.docs figure[data-rehype-pretty-code-figure] code {
+  display: grid;
+}
+/* Inline `code` (rehype-pretty-code wraps it in a span) */
+.docs span[data-rehype-pretty-code-figure] > code {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--d-inline);
+  color: var(--d-fg);
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
