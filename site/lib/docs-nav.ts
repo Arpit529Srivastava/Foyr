@@ -20,8 +20,8 @@ export const docsNav: DocGroup[] = [
   {
     title: "Reference",
     links: [
-      { title: "SDK — JavaScript", href: "/docs/sdk/javascript" },
-      { title: "SDK — Python", href: "/docs/sdk/python" },
+      { title: "JavaScript SDK", href: "/docs/sdk/javascript" },
+      { title: "Python SDK", href: "/docs/sdk/python" },
       { title: "foyr.json", href: "/docs/foyr-json", mono: true },
     ],
   },

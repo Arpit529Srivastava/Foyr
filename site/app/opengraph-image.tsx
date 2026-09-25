@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { OgCard, ogFonts, ogSize } from "@/lib/og";
 
-export const alt = "Foyr — Deploy the app you already built. Login included.";
+export const alt = "Foyr: Deploy the app you already built. Login included.";
 export const size = ogSize;
 export const contentType = "image/png";
 

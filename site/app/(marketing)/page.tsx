@@ -56,8 +56,8 @@ function Hero() {
           <div className="flex flex-col gap-7 lg:pb-2">
             <RevealItem>
               <p className="text-lg leading-7 text-muted">
-                Push your repo. Foyr gives it a URL, a front door and a guest list — invite people by email, gate features by
-                role. No auth code. No AWS console.
+                Push your repo. Foyr gives it a URL, a front door and a guest list. Invite people by email, gate features by role.
+                No auth code. No AWS console.
               </p>
             </RevealItem>
             <RevealItem className="grid grid-cols-2 gap-3 sm:flex">
@@ -174,7 +174,7 @@ function Features() {
           id="get-title"
           eyebrow="What you get"
           title="Every app gets a front door."
-          lead="Hosting, login and permissions — one push, no glue."
+          lead="Hosting, login and permissions in one push, with no glue."
         />
         <Stagger stagger={0.07} className="mt-10 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
           {FEATURES.map((f) => (
@@ -579,8 +579,7 @@ function CodeSection() {
               Auth without the auth code.
             </h2>
             <p className="text-lg leading-7 text-muted">
-              Foyr&apos;s proxy handles login before requests reach your app. Read the user from a header — or use our 50-line
-              SDK.
+              Foyr&apos;s proxy handles login before requests reach your app. Read the user from a header, or use our 50-line SDK.
             </p>
           </RevealItem>
           <RevealItem className="min-w-0">

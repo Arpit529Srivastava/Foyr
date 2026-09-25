@@ -1,4 +1,4 @@
-# foyr.online — marketing site + docs
+# foyr.online: marketing site + docs
 
 Next.js 16 (App Router, Turbopack) · Tailwind CSS v4 · Motion · MDX docs · deployed on Vercel.
 Built from the Foyr Claude Design canvas and [`docs/website/design-brief.md`](../docs/website/design-brief.md).
@@ -18,7 +18,7 @@ npm run dev
 | `app/(marketing)/` | Home, pricing, changelog, privacy, terms (shared header + footer) |
 | `app/docs/**/page.mdx` | Docs pages. Add a page here **and** in `lib/docs-nav.ts` (sidebar, pager, search, sitemap) |
 | `app/actions/waitlist.ts` | Server action: adds emails to a Resend audience |
-| `components/mockups/` | Product mockups **generated** from the design canvas by `scripts/dc2jsx.py` — regenerate, don't hand-edit |
+| `components/mockups/` | Product mockups **generated** from the design canvas by `scripts/dc2jsx.py`. Regenerate, don't hand-edit |
 | `components/docs/` | Docs shell, ⌘K search, table of contents, MDX components (`Callout`, `CodeTabs`, `ProxyDiagram`) |
 | `lib/code-themes.mjs` | Shiki themes (monochrome + amber) for code blocks |
 | `app/opengraph-image.tsx`, `app/icon.svg`, `app/apple-icon.tsx` | Social card and icons |

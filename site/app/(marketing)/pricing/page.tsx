@@ -39,7 +39,7 @@ const BILLING_FAQ = [
   { q: "Is Foyr free right now?", a: "Yes. Everything is free during early access." },
   {
     q: "What happens at launch?",
-    a: "We'll email you before any paid plan starts, with the prices and limits. Nothing is charged automatically — you pick a plan, or stay on the free tier if it fits.",
+    a: "We'll email you before any paid plan starts, with the prices and limits. Nothing is charged automatically: you pick a plan, or stay on the free tier if it fits.",
   },
   { q: "Do I need a card to join the waitlist?", a: "No. Just an email address." },
 ];
@@ -75,7 +75,7 @@ export default function PricingPage() {
                   </span>
                 </div>
                 <div className="mt-6 flex items-baseline gap-1">
-                  <span className="text-4xl leading-10 font-[510] tracking-[-0.012em] text-fg">—</span>
+                  <span className="text-4xl leading-10 font-[510] tracking-[-0.012em] text-fg">TBA</span>
                   <span className="text-sm text-subtle">Pricing at launch</span>
                 </div>
                 <p className="mt-3 text-sm leading-[22px] text-muted">{t.blurb}</p>

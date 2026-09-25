@@ -13,9 +13,9 @@ export const docsEditBaseUrl = process.env.NEXT_PUBLIC_DOCS_EDIT_URL;
 
 export const site = {
   name: "Foyr",
-  title: "Foyr — Deploy the app you already built. Login included.",
+  title: "Foyr: Deploy the app you already built. Login included.",
   description:
-    "Push your repo. Foyr gives it a URL, a front door and a guest list — invite people by email, gate features by role. No auth code. No AWS console.",
+    "Push your repo. Foyr gives it a URL, a front door and a guest list. Invite people by email, gate features by role. No auth code. No AWS console.",
 };
 
 export const mainNav = [
