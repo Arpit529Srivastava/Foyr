@@ -3,8 +3,8 @@
 Hosting platform: deploy existing apps with built-in auth, invites and roles.
 
 Read before making architectural changes:
-- docs/architecture/system-design.md — how the system works
-- docs/architecture/decisions.md — ADRs; add a new ADR instead of silently changing a decision
+- docs/architecture/system-design.md: how the system works
+- docs/architecture/decisions.md: ADRs. Add a new ADR instead of silently changing a decision
 
 Conventions:
 - Never hardcode domains: `PLATFORM_DOMAIN` = foyr.online (site, app., api., auth.),

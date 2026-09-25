@@ -1,21 +1,21 @@
-# Foyr — Product Vision
+# Foyr: Product Vision
 
 > Deploy the app you already wrote, with login, invites and roles built in.
 
 ## What Foyr is
 
-A hosting platform for people who already wrote their own app — with Cursor, Claude Code,
-by hand, whatever — and just want to deploy it with auth, permissions and a custom domain,
+A hosting platform for people who already wrote their own app (with Cursor, Claude Code,
+by hand, whatever) and just want to deploy it with auth, permissions and a custom domain,
 without touching the AWS console or wiring up a separate auth provider.
 
 **The wedge:** zero-config auth + permissions bundled into deploy, for code you already
 wrote. Every app gets a front door: private by default, invite people by email, gate
-features by role — without writing a single line of auth code.
+features by role, without writing a single line of auth code.
 
 ## Target user
 
 Solo devs and small teams who've built something (often AI-assisted) and need to share it
-with a few teammates or clients — an internal tool, a small SaaS MVP, a client dashboard —
+with a few teammates or clients (an internal tool, a small SaaS MVP, a client dashboard)
 without spinning up Cognito/Auth0 + IAM + a permissions system themselves.
 
 ## What we are not building
@@ -43,4 +43,4 @@ without spinning up Cognito/Auth0 + IAM + a permissions system themselves.
 ## Success looks like
 
 A stranger can sign up, connect a repo, deploy, and invite a teammate who logs in and
-sees the app — without help and without writing auth code.
+sees the app, without help and without writing auth code.

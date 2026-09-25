@@ -1,9 +1,9 @@
 # Foyr
 
-**Deploy the app you already wrote — with login, invites and roles built in.**
+**Deploy the app you already wrote, with login, invites and roles built in.**
 
 Foyr hosts apps you built yourself (with Cursor, Claude Code or by hand) and puts a front
-door on each one: private by default, invite people by email, gate features by role — with
+door on each one: private by default, invite people by email, gate features by role, with
 zero auth code and no AWS console.
 
 > Status: pre-Phase 0. Website and docs built in [`site/`](site/) (Next.js, deployed on Vercel).
