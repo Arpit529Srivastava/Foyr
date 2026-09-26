@@ -12,3 +12,5 @@ Conventions:
 - AWS region is ap-south-1.
 - Git: this repo commits as the personal account (Arpit529Srivastava) and pushes over SSH via
   the `github-personal` host alias. Do not use the global (work) git identity.
+- `main` is protected (ADR-017): never push to it. Work on a branch, commit with `-s`, open a PR.
+  CI for `site/` must pass (`cd site && npm run check` runs the same steps locally).
