@@ -1,5 +1,8 @@
 // Never hardcode domains (ADR-015): everything reads from env with sane defaults.
 export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://foyr.online";
+
+/** Only the real domain is indexed; temporary hosts (e.g. *.vercel.app) and previews are hidden from search. */
+export const isIndexable = new URL(siteUrl).hostname === "foyr.online";
 export const dashboardUrl = process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "https://app.foyr.online";
 // Optional public links: each is hidden until its env var is set (no dead links).
 export const social = {
