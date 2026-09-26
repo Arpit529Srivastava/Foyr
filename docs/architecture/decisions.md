@@ -221,3 +221,12 @@ cat > protect.json <<'JSON'
 JSON
 gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input protect.json
 ```
+
+## ADR-018: Development lifecycle and testing standard
+**Date:** 2026-09-27 · **Status:** Accepted
+
+**Decision:** Every change goes plan, branch, tests, implementation, local checks, signed commit, PR, green CI, merge, post-deploy check. Code is not merged without tests: Go packages have `_test.go` files, bug fixes begin with a failing test, infra passes `tofu fmt -check` and `tofu validate`, and `tofu apply` only runs with explicit approval.
+
+**Why:** foyrd and authproxy sit in front of other people's apps, so regressions are security problems. Tests written with the code are cheap; retrofitting them is not.
+
+**Consequences:** CI per area (site, Go, later infra) must run these checks. Add coverage reporting and integration tests (Postgres, GitHub webhook fixtures) as those pieces land.
