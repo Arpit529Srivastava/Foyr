@@ -1,6 +1,14 @@
 terraform {
   required_version = ">= 1.8"
 
+  backend "s3" {
+    bucket       = "foyr-tfstate-899628690655"
+    key          = "prod/terraform.tfstate"
+    region       = "ap-south-1"
+    use_lockfile = true
+    encrypt      = true
+  }
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
