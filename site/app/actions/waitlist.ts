@@ -29,10 +29,22 @@ export async function joinWaitlist(_prev: WaitlistState, form: FormData): Promis
     return { status: "error", email };
   }
 
+  const base = `https://api.resend.com/audiences/${audience}/contacts`;
+  const headers = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
+
   try {
-    const res = await fetch(`https://api.resend.com/audiences/${audience}/contacts`, {
+    // Resend upserts on POST (a repeat email returns 201 and would overwrite the stored use case),
+    // so look the contact up first to tell "new" from "already on the list".
+    const existing = await fetch(`${base}/${encodeURIComponent(email)}`, { headers, cache: "no-store" });
+    if (existing.ok) return { status: "already", email };
+    if (existing.status !== 404) {
+      console.error("waitlist: resend lookup error", existing.status, await existing.text());
+      return { status: "error", email };
+    }
+
+    const res = await fetch(base, {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         email,
         unsubscribed: false,
@@ -41,9 +53,7 @@ export async function joinWaitlist(_prev: WaitlistState, form: FormData): Promis
       cache: "no-store",
     });
     if (res.ok) return { status: "success", email };
-    const body = await res.text();
-    if (res.status === 409 || /already exists/i.test(body)) return { status: "already", email };
-    console.error("waitlist: resend error", res.status, body);
+    console.error("waitlist: resend error", res.status, await res.text());
     return { status: "error", email };
   } catch (err) {
     console.error("waitlist: request failed", err);
