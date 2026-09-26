@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
 import { WaitlistProvider } from "@/components/waitlist";
-import { site, siteUrl } from "@/lib/site";
+import { isIndexable, site, siteUrl } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
@@ -9,6 +9,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+  robots: isIndexable ? undefined : { index: false, follow: false },
   title: { default: site.title, template: "%s · Foyr" },
   description: site.description,
   applicationName: "Foyr",
