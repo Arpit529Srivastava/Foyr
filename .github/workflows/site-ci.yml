@@ -1,0 +1,83 @@
+name: Site CI
+
+# Checks the marketing site and docs in site/. Backend and infra get their own
+# workflows when they exist, so this one only runs when site/ changes.
+on:
+  pull_request:
+    paths:
+      - "site/**"
+      - ".github/workflows/site-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/site-ci.yml"
+  workflow_dispatch:
+
+# A newer push to the same PR cancels the older run. Runs on main always finish.
+concurrency:
+  group: site-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: site
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  CI: "true"
+
+jobs:
+  check:
+    name: Lint, types, build (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # Next 16 needs Node >= 20.9. 20 is what we develop on, 22 is the Vercel default.
+        node: [20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Formatting
+        run: npm run format:check
+
+      - name: Type check
+        run: npm run typecheck
+
+      # Reuses Next's build cache between runs (compiled output, image optimisation).
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: site/.next/cache
+          key: nextjs-${{ runner.os }}-node${{ matrix.node }}-${{ hashFiles('site/package-lock.json') }}-${{ hashFiles('site/**/*.ts', 'site/**/*.tsx', 'site/**/*.mdx', 'site/**/*.css') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-node${{ matrix.node }}-${{ hashFiles('site/package-lock.json') }}-
+
+      # No secrets are needed: RESEND_* are only read when the waitlist form is submitted.
+      - name: Build
+        run: npm run build
+
+      - name: Check that every route was prerendered
+        run: |
+          test -f .next/server/app/index.html
+          test -f .next/server/app/docs.html
+          test -f .next/server/app/docs/quickstart.html
+          test -f .next/server/app/pricing.html
