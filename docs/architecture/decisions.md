@@ -175,3 +175,49 @@ Resend needs no database and is also the planned magic-link email provider.
 
 **Consequences:** Docs search is a static index built from the MDX files at build time (fine for
 tens of pages; revisit if docs grow past ~100). New docs pages must be added to `lib/docs-nav.ts`.
+
+## ADR-017: Repository workflow: protected `main`, PR-only, CI on every PR
+**Date:** 2026-09-26 · **Status:** Accepted
+
+**Decision:**
+- `main` is protected on GitHub. Every change goes through a pull request; direct pushes, force-pushes
+  and deleting `main` are blocked, for admins too.
+- Required approvals are **0** while there is one contributor (GitHub does not let you approve your own
+  PR). Raise it to 1 when a second person joins. Stale approvals are dismissed on new pushes and all PR
+  conversations must be resolved before merging.
+- Every commit carries a `Signed-off-by` trailer (`git commit -s`), and commits are made as the personal
+  account (see CLAUDE.md).
+- CI is one workflow per part of the repo, path-filtered so unrelated PRs stay fast. Today:
+  `.github/workflows/site-ci.yml` (lint, format, typecheck, build on Node 20 and 22). Go, OpenTofu and
+  dependency-audit workflows are added with the backend.
+
+**Why:** A hosting platform's `main` becomes what gets deployed; a mistake there should need a PR, a
+passing check and a second look, even when the second look is the author's own diff. Protecting it now is
+free and avoids retrofitting habits later.
+
+**Consequences:**
+- Required status checks are deliberately **not** enabled yet. Path-filtered workflows only run when their
+  paths change, so a required check would block PRs that never trigger it. Enable them once either every
+  check runs on every PR or each area has a stable always-running "gate" job.
+- Branch protection lives in GitHub settings, not in git. To re-create it:
+
+```bash
+cat > protect.json <<'JSON'
+{
+  "required_status_checks": null,
+  "enforce_admins": true,
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 0,
+    "dismiss_stale_reviews": true,
+    "require_code_owner_reviews": false,
+    "require_last_push_approval": false
+  },
+  "restrictions": null,
+  "required_linear_history": false,
+  "allow_force_pushes": false,
+  "allow_deletions": false,
+  "required_conversation_resolution": true
+}
+JSON
+gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input protect.json
+```

@@ -4,6 +4,7 @@
 - [x] Marketing site built (`site/`): home, pricing, changelog, 404, privacy, terms
 - [x] Public docs section: 10 pages, search, light/dark
 - [x] Waitlist form (Resend audience)
+- [x] CI for `site/` (lint, format, typecheck, build) and protected `main` (ADR-017)
 - [ ] Deploy to Vercel and point `foyr.online` at it
 - [ ] Resend account + audience; set `RESEND_API_KEY` / `RESEND_AUDIENCE_ID`
 - [ ] Replace plain-language privacy/terms with reviewed versions before hosting customer apps
