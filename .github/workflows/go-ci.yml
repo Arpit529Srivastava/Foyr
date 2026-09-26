@@ -1,0 +1,35 @@
+name: Go CI
+
+on:
+  pull_request:
+    paths: ["cmd/**", "internal/**", "go.mod", "go.sum", ".github/workflows/go-ci.yml"]
+  push:
+    branches: [main]
+    paths: ["cmd/**", "internal/**", "go.mod", "go.sum", ".github/workflows/go-ci.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: go-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Vet, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Format
+        run: test -z "$(gofmt -l cmd internal)"
+      - name: Vet
+        run: go vet ./cmd/... ./internal/...
+      - name: Test
+        run: go test -race ./cmd/... ./internal/...
+      - name: Build
+        run: go build ./cmd/... ./internal/...
