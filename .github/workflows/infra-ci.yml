@@ -15,10 +15,6 @@ concurrency:
 permissions:
   contents: read
 
-defaults:
-  run:
-    working-directory: infra
-
 jobs:
   check:
     name: Format and validate
@@ -28,8 +24,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: opentofu/setup-opentofu@v1
       - name: Format
-        run: tofu fmt -check -recursive
-      - name: Init (no backend)
-        run: tofu init -backend=false -input=false
-      - name: Validate
-        run: tofu validate
+        run: tofu fmt -check -recursive infra
+      - name: Validate and test
+        run: |
+          for dir in infra infra/bootstrap; do
+            tofu -chdir=$dir init -backend=false -input=false
+            tofu -chdir=$dir validate
+            if ls $dir/*.tftest.hcl >/dev/null 2>&1; then tofu -chdir=$dir test; fi
+          done
