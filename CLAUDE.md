@@ -14,3 +14,4 @@ Conventions:
   the `github-personal` host alias. Do not use the global (work) git identity.
 - `main` is protected (ADR-017): never push to it. Work on a branch, commit with `-s`, open a PR.
   CI for `site/` must pass (`cd site && npm run check` runs the same steps locally).
+- Go: `gofmt -l . && go vet ./cmd/... ./internal/... && go test ./cmd/... ./internal/...` runs the same steps as Go CI.
