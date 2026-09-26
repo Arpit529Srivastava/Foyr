@@ -1,0 +1,35 @@
+name: Infra CI
+
+on:
+  pull_request:
+    paths: ["infra/**", ".github/workflows/infra-ci.yml"]
+  push:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/infra-ci.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: infra-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: infra
+
+jobs:
+  check:
+    name: Format and validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+      - name: Format
+        run: tofu fmt -check -recursive
+      - name: Init (no backend)
+        run: tofu init -backend=false -input=false
+      - name: Validate
+        run: tofu validate
