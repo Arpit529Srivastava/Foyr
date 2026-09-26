@@ -11,6 +11,15 @@ cp .env.example .env.local   # add Resend keys to make the waitlist work
 npm run dev
 ```
 
+## Checks (same as CI)
+
+```bash
+npm run check          # lint + format check + typecheck + production build
+npm run format         # fix formatting
+```
+
+CI ([`.github/workflows/site-ci.yml`](../.github/workflows/site-ci.yml)) runs those steps on Node 20 and 22 for every PR and push to `main` that touches `site/`.
+
 ## Layout
 
 | Path | What |
