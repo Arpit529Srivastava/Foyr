@@ -230,3 +230,30 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** foyrd and authproxy sit in front of other people's apps, so regressions are security problems. Tests written with the code are cheap; retrofitting them is not.
 
 **Consequences:** CI per area (site, Go, later infra) must run these checks. Add coverage reporting and integration tests (Postgres, GitHub webhook fixtures) as those pieces land.
+
+## ADR-019: Observability plan: CloudWatch now, OpenTelemetry-ready code, no self-hosted Prometheus/Grafana
+**Date:** 2026-09-27 · **Status:** Accepted
+
+**Decision:**
+- Phase 0: CloudWatch Logs with retention on every log group, structured JSON logs (`log/slog`) with `request_id`, `app_id` and `deploy_id`, and CloudWatch alarms emailed through SNS (fck-nat down, builds failing repeatedly; later ALB 5xx).
+- Phase 1: Sentry (free tier) in foyrd, authproxy and web; OpenTelemetry instrumentation in Go with a no-op exporter by default, switched on to X-Ray or Grafana Cloud when needed; an external uptime check on login and API.
+- Phase 3: per-app request counts from authproxy (metering and dashboard), CloudWatch Live Tail for the logs viewer.
+- No self-hosted Prometheus or Grafana. Revisit hosted Prometheus/Grafana when there is real traffic across many services.
+
+**Why:** Self-hosting costs ~$15–30/month plus upkeep and gives nothing before there is traffic. Structured logs, request IDs and OpenTelemetry are cheap to add now and expensive to retrofit.
+
+**Consequences:** Every new log group sets `retention_in_days`. Go services log JSON only and propagate a request ID.
+
+## ADR-020: Build and run placement (step 4)
+**Date:** 2026-09-27 · **Status:** Accepted
+
+**Decision:**
+- Step 4 is split. 4a (ECR, ECS cluster, CodeBuild, IAM, log groups, Cloud Map) is created now; 4b (ALB, platform RDS) is created when foyrd and authproxy exist, with a switch to turn them off when idle.
+- CodeBuild runs **outside the VPC**, so untrusted build code never sits on the platform network or uses fck-nat.
+- Foyr's own services run on **ARM64** (Graviton, ~20% cheaper). Customer apps build and run on **x86_64** by default for npm native-module compatibility; ARM can be offered later.
+- Customer app tasks get no IAM task role. Platform and tenant tasks use separate execution roles, each limited to its own SSM path (`/foyr/platform/*`, `/foyr/apps/*`).
+- Base images come from ECR Public (`public.ecr.aws/docker/library/...`) to avoid Docker Hub rate limits.
+
+**Why:** Nothing needs the ALB or database until the Go services exist, saving ~$40/month. Keeping builds off the VPC is the simplest strong isolation for untrusted code.
+
+**Consequences:** Phase 0's CodeBuild role can push to any `apps/*` repository; per-build scoping comes later. The ALB gets HTTPS once `foyrapps.online` is bought.
