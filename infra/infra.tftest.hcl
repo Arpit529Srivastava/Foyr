@@ -1,7 +1,14 @@
+# Plans against a fake AWS; no credentials needed.
 mock_provider "aws" {
   mock_data "aws_availability_zones" {
     defaults = {
       names = ["ap-south-1a", "ap-south-1b", "ap-south-1c"]
+    }
+  }
+
+  mock_data "aws_caller_identity" {
+    defaults = {
+      account_id = "123456789012"
     }
   }
 
@@ -15,6 +22,12 @@ mock_provider "aws" {
   mock_data "aws_ami" {
     defaults = {
       id = "ami-12345678"
+    }
+  }
+
+  mock_data "aws_iam_policy_document" {
+    defaults = {
+      json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
     }
   }
 
@@ -36,11 +49,21 @@ mock_provider "aws" {
     }
   }
 
-  mock_data "aws_iam_policy_document" {
+  mock_resource "aws_cloudwatch_log_group" {
     defaults = {
-      json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
+      arn = "arn:aws:logs:ap-south-1:123456789012:log-group:mock"
     }
   }
+
+  mock_resource "aws_sns_topic" {
+    defaults = {
+      arn = "arn:aws:sns:ap-south-1:123456789012:mock"
+    }
+  }
+}
+
+variables {
+  alert_email = "alerts@example.com"
 }
 
 run "network_layout" {
@@ -85,5 +108,52 @@ run "network_layout" {
   assert {
     condition     = aws_network_acl.tenant.egress != null && length([for e in aws_network_acl.tenant.egress : e if e.action == "allow" && e.from_port == 32768]) == 2
     error_message = "tenant NACL must allow replies to platform on ephemeral ports only"
+  }
+}
+
+run "build_and_run" {
+  command = plan
+
+  assert {
+    condition     = alltrue([for r in aws_ecr_repository.platform : r.image_tag_mutability == "IMMUTABLE" && alltrue([for c in r.image_scanning_configuration : c.scan_on_push])])
+    error_message = "platform repositories must be immutable and scan on push"
+  }
+
+  assert {
+    condition     = length(aws_codebuild_project.build.vpc_config) == 0
+    error_message = "CodeBuild must run outside the VPC (ADR-020)"
+  }
+
+  assert {
+    condition     = alltrue([for e in aws_codebuild_project.build.environment : strcontains(e.image, "x86_64") && e.compute_type == "BUILD_GENERAL1_MEDIUM"])
+    error_message = "builds must be x86_64 on MEDIUM (ADR-020, ADR-008)"
+  }
+
+  assert {
+    condition = alltrue(flatten([
+      for s in data.aws_iam_policy_document.codebuild.statement : [
+        for r in s.resources : s.sid == "EcrLogin" || endswith(r, ":repository/apps/*") || startswith(r, "arn:aws:logs:")
+      ]
+    ]))
+    error_message = "CodeBuild may only push to apps/* repositories"
+  }
+
+  assert {
+    condition = alltrue(flatten([
+      for k, d in data.aws_iam_policy_document.exec_secrets : [
+        for s in d.statement : [for r in s.resources : endswith(r, ":parameter/foyr/${local.exec_roles[k]}/*")]
+      ]
+    ]))
+    error_message = "each execution role may only read its own SSM folder"
+  }
+
+  assert {
+    condition     = aws_cloudwatch_log_group.builds.retention_in_days > 0 && aws_cloudwatch_log_group.platform.retention_in_days > 0
+    error_message = "every log group must set retention (ADR-019)"
+  }
+
+  assert {
+    condition     = contains(aws_ecs_cluster_capacity_providers.main.capacity_providers, "FARGATE") && contains(aws_ecs_cluster_capacity_providers.main.capacity_providers, "FARGATE_SPOT")
+    error_message = "cluster must allow FARGATE and FARGATE_SPOT"
   }
 }

@@ -8,3 +8,4 @@ node_modules/
 .terraform/
 .gstack/
 tfplan
+infra/terraform.tfvars
