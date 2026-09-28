@@ -53,6 +53,11 @@ function mark(unit = 2): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" aria-hidden="true">${rows.map(row).join("")}</table>`;
 }
 
+// The site's doorway light (cta-band), so every email reads as Foyr at a glance.
+function banner(assetBaseUrl: string): string {
+  return `<img src="${escapeHtml(assetBaseUrl)}/email/banner.jpg" width="558" alt="" style="display:block;width:100%;max-width:558px;height:auto;border:0;border-radius:13px 13px 0 0;background:#06161a;" />`;
+}
+
 export function eyebrow(label: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
 <td style="padding:0 8px 0 0;"><div style="width:6px;height:6px;border-radius:3px;background:${tokens.amber};font-size:0;line-height:0;">&nbsp;</div></td>
@@ -61,7 +66,7 @@ export function eyebrow(label: string): string {
 }
 
 export function heading(html: string): string {
-  return `<h1 style="margin:16px 0 12px;font-family:${font};font-size:26px;line-height:32px;font-weight:600;letter-spacing:-0.02em;color:#ffffff;">${html}</h1>`;
+  return `<h1 style="margin:14px 0 12px;font-family:${font};font-size:26px;line-height:32px;font-weight:600;letter-spacing:-0.02em;color:#ffffff;">${html}</h1>`;
 }
 
 export function paragraph(html: string): string {
@@ -114,12 +119,15 @@ export function layout({
   body,
   footer,
   siteUrl,
+  assetBaseUrl = siteUrl,
 }: {
   title: string;
   preheader: string;
   body: string;
   footer: string;
   siteUrl: string;
+  /** Where /email/banner.jpg is served from; defaults to the site. */
+  assetBaseUrl?: string;
 }): string {
   return `<!doctype html>
 <html lang="en">
@@ -144,8 +152,13 @@ export function layout({
 </tr></table>
 </a>
 </td></tr>
-<tr><td style="padding:32px;background:${tokens.card};border:1px solid ${tokens.line};border-radius:14px;">
+<tr><td style="padding:0;background:${tokens.card};border:1px solid ${tokens.line};border-radius:14px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding:0;font-size:0;line-height:0;">${banner(assetBaseUrl)}</td></tr>
+<tr><td style="padding:28px 32px 32px;">
 ${body}
+</td></tr>
+</table>
 </td></tr>
 <tr><td style="padding:24px 4px 0;font-family:${font};font-size:12px;line-height:18px;color:${tokens.subtle};">
 ${footer}

@@ -11,7 +11,17 @@ const product: [string, string][] = [
 ];
 
 /** Sent to the person who joined, once a sending domain is verified. */
-export function welcomeEmail({ email, useCase, siteUrl }: { email: string; useCase: string; siteUrl: string }): Email {
+export function welcomeEmail({
+  email,
+  useCase,
+  siteUrl,
+  assetBaseUrl,
+}: {
+  email: string;
+  useCase: string;
+  siteUrl: string;
+  assetBaseUrl?: string;
+}): Email {
   const label = labelForUseCase(useCase);
   const host = new URL(siteUrl).host;
   const body = [
@@ -35,6 +45,7 @@ export function welcomeEmail({ email, useCase, siteUrl }: { email: string; useCa
       body,
       footer,
       siteUrl,
+      assetBaseUrl,
     }),
     text: [
       "You're on the list.",
@@ -61,12 +72,14 @@ export function founderNotifyEmail({
   at,
   audienceId,
   siteUrl,
+  assetBaseUrl,
 }: {
   email: string;
   useCase: string;
   at: Date;
   audienceId: string;
   siteUrl: string;
+  assetBaseUrl?: string;
 }): Email {
   const when = `${new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(at)} IST`;
   const host = new URL(siteUrl).host;
@@ -88,7 +101,14 @@ export function founderNotifyEmail({
 
   return {
     subject: `New waitlist sign-up: ${email}`,
-    html: layout({ title: "New waitlist sign-up", preheader: `${email} joined the Foyr waitlist.`, body, footer, siteUrl }),
+    html: layout({
+      title: "New waitlist sign-up",
+      preheader: `${email} joined the Foyr waitlist.`,
+      body,
+      footer,
+      siteUrl,
+      assetBaseUrl,
+    }),
     text: [
       `${email} joined the Foyr waitlist.`,
       "",

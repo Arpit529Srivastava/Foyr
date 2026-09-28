@@ -56,6 +56,30 @@ describe("founderNotifyEmail", () => {
   });
 });
 
+describe("banner", () => {
+  it("uses the site's doorway light from the site by default", () => {
+    const m = welcomeEmail({ email: "sam@acme.com", useCase: "", siteUrl });
+    expect(m.html).toContain(`src="${siteUrl}/email/banner.jpg"`);
+  });
+
+  it("can load the welcome banner from another host", () => {
+    const m = welcomeEmail({ email: "sam@acme.com", useCase: "", siteUrl, assetBaseUrl: "http://localhost:3100" });
+    expect(m.html).toContain(`src="http://localhost:3100/email/banner.jpg"`);
+  });
+
+  it("can load the banner from another host", () => {
+    const m = founderNotifyEmail({
+      email: "sam@acme.com",
+      useCase: "",
+      at: new Date(),
+      audienceId: "x",
+      siteUrl,
+      assetBaseUrl: "http://localhost:3100",
+    });
+    expect(m.html).toContain(`src="http://localhost:3100/email/banner.jpg"`);
+  });
+});
+
 describe("copy rules", () => {
   it("never uses em dashes", () => {
     const at = new Date();
