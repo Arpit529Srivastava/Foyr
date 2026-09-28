@@ -257,3 +257,15 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** Nothing needs the ALB or database until the Go services exist, saving ~$40/month. Keeping builds off the VPC is the simplest strong isolation for untrusted code.
 
 **Consequences:** Phase 0's CodeBuild role can push to any `apps/*` repository; per-build scoping comes later. The ALB gets HTTPS once `foyrapps.online` is bought.
+
+## ADR-021: Temporary site host and founder email until foyr.online is live
+**Date:** 2026-09-29 · **Status:** Accepted (temporary) · **Amends:** ADR-015
+
+**Decision:** Until `foyr.online` is bought (planned first week of October 2026):
+- Every real link the site and its emails produce uses the Vercel URL `https://foyrai.vercel.app`. It is the default of `siteUrl` in `site/lib/site.ts` and the value of `NEXT_PUBLIC_SITE_URL` in Vercel. Docs text and product mockups that describe the future hosts (`app.foyr.online`, `*.foyrapps.online`) stay as they are, because they describe the product, not links.
+- Waitlist notifications go to the founder address hardcoded in `site/app/actions/waitlist.ts` (`FOUNDER_EMAIL`), sent from Resend's shared `onboarding@resend.dev`. `WAITLIST_NOTIFY_EMAIL` still overrides it.
+- The welcome email to people who join stays off until a sending domain is verified.
+
+**Why:** The domain isn't owned yet, so `foyr.online` links would be dead, and Resend can only deliver to the account owner without a verified domain.
+
+**Consequences:** These are deliberate exceptions to "never hardcode domains". Every one is listed in `docs/domain-switch.md`, which must be worked through when the domain is bought, and this ADR is then superseded.

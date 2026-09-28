@@ -10,7 +10,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write \"{app,components,lib}/**/*.{ts,tsx,mjs,css}\" \"*.{ts,tsx,mjs}\"",
     "format:check": "prettier --check \"{app,components,lib}/**/*.{ts,tsx,mjs,css}\" \"*.{ts,tsx,mjs}\"",
-    "check": "npm run lint && npm run format:check && npm run typecheck && npm run build"
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
@@ -39,6 +40,7 @@
     "eslint-config-next": "16.3.6",
     "prettier": "^3.9.9",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

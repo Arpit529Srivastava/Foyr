@@ -1,5 +1,6 @@
 // Never hardcode domains (ADR-015): everything reads from env with sane defaults.
-export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://foyr.online";
+// Temporary default until foyr.online is bought (ADR-021, docs/domain-switch.md).
+export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://foyrai.vercel.app";
 
 /** Only the real domain is indexed; temporary hosts (e.g. *.vercel.app) and previews are hidden from search. */
 export const isIndexable = new URL(siteUrl).hostname === "foyr.online";
@@ -35,7 +36,7 @@ export const productMenu = [
 ] as const;
 
 const askPrompt = encodeURIComponent(
-  "What is Foyr (foyr.online)? It deploys apps from GitHub with login, invites and roles built in. How does it work?",
+  `What is Foyr (${new URL(siteUrl).host})? It deploys apps from GitHub with login, invites and roles built in. How does it work?`,
 );
 
 export const askLinks = [
