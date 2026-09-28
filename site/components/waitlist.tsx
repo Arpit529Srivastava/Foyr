@@ -4,6 +4,7 @@ import { createContext, useActionState, useContext, useEffect, useId, useRef, us
 import { AlertCircle, ArrowRight, Check, Loader2, MailCheck, RotateCw, X } from "lucide-react";
 import { joinWaitlist, type WaitlistState } from "@/app/actions/waitlist";
 import { buttonStyles } from "@/components/ui";
+import { useCases } from "@/lib/waitlist";
 
 const WaitlistContext = createContext<{ open: () => void }>({ open: () => {} });
 
@@ -46,13 +47,6 @@ export function WaitlistButton({
     </button>
   );
 }
-
-const USE_CASES = [
-  { value: "internal-tool", label: "Internal tool" },
-  { value: "client-dashboard", label: "Client dashboard" },
-  { value: "saas-mvp", label: "SaaS MVP" },
-  { value: "other", label: "Other" },
-];
 
 function WaitlistModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -172,7 +166,7 @@ function WaitlistModal({ open, onClose }: { open: boolean; onClose: () => void }
               </legend>
               <input type="hidden" name="useCase" value={useCase} />
               <div className="flex flex-wrap gap-2">
-                {USE_CASES.map((c) => {
+                {useCases.map((c) => {
                   const on = useCase === c.value;
                   return (
                     <button
