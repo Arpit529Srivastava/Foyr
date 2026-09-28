@@ -2,10 +2,11 @@ import { founderNotifyEmail, welcomeEmail } from "@/lib/emails/waitlist";
 import { siteUrl } from "@/lib/site";
 
 // Local-only previews: /dev/emails/welcome and /dev/emails/notify. 404 everywhere else.
-export async function GET(_req: Request, ctx: RouteContext<"/dev/emails/[name]">) {
+export async function GET(req: Request, ctx: RouteContext<"/dev/emails/[name]">) {
   if (process.env.NODE_ENV !== "development") return new Response("Not found", { status: 404 });
   const { name } = await ctx.params;
-  const sample = { email: "sam@acme.com", useCase: "internal-tool", siteUrl };
+  // Banner loads from this dev server, since the site URL may not serve it yet.
+  const sample = { email: "sam@acme.com", useCase: "internal-tool", siteUrl, assetBaseUrl: new URL(req.url).origin };
   const email =
     name === "welcome"
       ? welcomeEmail(sample)
