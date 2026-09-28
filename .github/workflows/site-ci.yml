@@ -62,6 +62,9 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Unit tests
+        run: npm test
+
       # Reuses Next's build cache between runs (compiled output, image optimisation).
       - name: Restore Next.js build cache
         uses: actions/cache@v4
