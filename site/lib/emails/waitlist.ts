@@ -97,7 +97,7 @@ export function founderNotifyEmail({
     details(rows),
     button(audienceUrl, "Open audience in Resend"),
   ].join("\n");
-  const footer = `Sent by the waitlist form on ${link(siteUrl, host)} because <code style="font-family:inherit;">WAITLIST_NOTIFY_EMAIL</code> is set.`;
+  const footer = `Sent by the waitlist form on ${link(siteUrl, host)}.`;
 
   return {
     subject: `New waitlist sign-up: ${email}`,

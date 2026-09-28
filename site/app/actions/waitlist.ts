@@ -15,6 +15,8 @@ export type WaitlistState =
 
 // Resend's shared sender; only delivers to the Resend account owner until a domain is verified.
 const DEFAULT_FROM = "Foyr Waitlist <onboarding@resend.dev>";
+// Temporary: new sign-ups go here unless WAITLIST_NOTIFY_EMAIL is set (ADR-021, docs/domain-switch.md).
+const FOUNDER_EMAIL = "arpitsrivastava529@gmail.com";
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /**
@@ -72,17 +74,14 @@ export async function joinWaitlist(_prev: WaitlistState, form: FormData): Promis
 }
 
 /**
- * After a new sign-up: notify the founder (WAITLIST_NOTIFY_EMAIL) and, once a sending domain is
+ * After a new sign-up: notify the founder and, once a sending domain is
  * verified (WAITLIST_FROM_EMAIL), welcome the person who joined. Failures are logged only.
  */
 async function sendWaitlistEmails(apiKey: string, audience: string, email: string, useCase: string) {
   const from = process.env.WAITLIST_FROM_EMAIL || undefined;
-  const notifyTo = process.env.WAITLIST_NOTIFY_EMAIL || undefined;
-  const jobs: Promise<boolean>[] = [];
-  if (notifyTo) {
-    const message = founderNotifyEmail({ email, useCase, at: new Date(), audienceId: audience, siteUrl });
-    jobs.push(sendEmail(apiKey, { from: from ?? DEFAULT_FROM, to: notifyTo, replyTo: email, ...message }));
-  }
+  const notifyTo = process.env.WAITLIST_NOTIFY_EMAIL || FOUNDER_EMAIL;
+  const notice = founderNotifyEmail({ email, useCase, at: new Date(), audienceId: audience, siteUrl });
+  const jobs = [sendEmail(apiKey, { from: from ?? DEFAULT_FROM, to: notifyTo, replyTo: email, ...notice })];
   if (from) {
     jobs.push(sendEmail(apiKey, { from, to: email, ...welcomeEmail({ email, useCase, siteUrl }) }));
   }

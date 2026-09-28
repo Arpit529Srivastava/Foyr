@@ -86,11 +86,11 @@ describe("joinWaitlist emails", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("skips the notification when WAITLIST_NOTIFY_EMAIL is not set", async () => {
+  it("falls back to the founder's address when WAITLIST_NOTIFY_EMAIL is not set", async () => {
     vi.stubEnv("WAITLIST_NOTIFY_EMAIL", "");
     const calls = mockResend();
     expect((await submit("sam@acme.com")).status).toBe("success");
-    expect(emails(calls)).toHaveLength(0);
+    expect(emails(calls).map((c) => c.body.to)).toEqual(["arpitsrivastava529@gmail.com"]);
   });
 
   it("still reports success when sending fails", async () => {
