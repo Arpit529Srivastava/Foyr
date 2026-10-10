@@ -5,13 +5,13 @@
 - [x] Public docs section: 10 pages, search, light/dark
 - [x] Waitlist form (Resend audience)
 - [x] CI for `site/` (lint, format, typecheck, build) and protected `main` (ADR-017)
-- [ ] Deploy to Vercel and point `foyr.online` at it
-- [ ] Resend account + audience; set `RESEND_API_KEY` / `RESEND_AUDIENCE_ID`
+- [x] Deploy to Vercel and point `foyr.online` at it (ADR-022)
+- [x] Resend audience, founder notification and welcome email from `mail.foyr.online`
 - [ ] Replace plain-language privacy/terms with reviewed versions before hosting customer apps
 
 ## Phase 0: Bare deploy pipeline (~3 weeks)
 - [ ] OpenTofu: VPC, subnets, fck-nat, ALB, ECS cluster, ECR, RDS, CodeBuild project (ap-south-1)
-- [ ] GitHub App: developer login, repo install, push webhooks
+- [ ] GitHub App: repo install, verified push webhooks, installation tokens (developer login moves to Phase 1, ADR-023)
 - [ ] Build: repo Dockerfile or Next.js template → CodeBuild → ECR
 - [ ] Deploy: ECS service per deployment, Cloud Map discovery, health check
 - [ ] authproxy as a plain router with proxy-level blue/green and rollback
@@ -19,6 +19,7 @@
 - **Done when:** `git push` → live URL, working and repeatable.
 
 ## Phase 1: Auth-as-a-service (~4 weeks)
+- [ ] Developer login with GitHub (ADR-023)
 - [ ] Magic-link login (SES) and sessions (ES256 JWT)
 - [ ] authproxy: session check, header stripping, identity headers, signed assertion
 - [ ] Per-app invites

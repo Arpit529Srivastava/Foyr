@@ -274,3 +274,16 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Date:** 2026-10-10 · **Status:** Accepted · **Supersedes:** ADR-021 (site URL part)
 
 **Decision:** `foyr.online` was bought on 2026-10-10 (GoDaddy). The `siteUrl` default in `site/lib/site.ts` is `https://foyr.online` again and `NEXT_PUBLIC_SITE_URL` is set to it in Vercel; `foyrai.vercel.app` redirects to it. Still temporary under ADR-021 until their own steps are done: the hardcoded `FOUNDER_EMAIL` (until a `@foyr.online` mailbox exists) and the welcome email (until `mail.foyr.online` is verified in Resend). `docs/domain-switch.md` tracks what is left.
+
+## ADR-023: GitHub App setup for Phase 0 (step 5)
+**Date:** 2026-10-10 · **Status:** Accepted · **Amends:** ADR-010, roadmap Phase 0
+
+**Decision:**
+- Two GitHub Apps: **`foyr-dev`** now (webhooks through a smee.io relay to foyrd on a laptop, installed only on test repos) and **`Foyr`** for production once `api.foyr.online` serves foyrd. Customers never see the dev App, and a leaked dev key cannot read customer repos.
+- Permissions: Contents read-only and Metadata read-only. Events: push (installation events arrive automatically).
+- Step 5 only receives and verifies webhooks and mints installation tokens. Saving installations and pushes moves to step 6 (with the platform database), and **developer login with GitHub moves to Phase 1**, where the dashboard and sessions live.
+- The App JWT is signed with the standard library (RS256); no JWT library until Phase 1 needs to verify untrusted tokens.
+
+**Why:** Keeps step 5 small and testable, keeps test traffic away from the production App, and adds no dependencies.
+
+**Consequences:** smee.io sees webhook payloads (repo names, commit metadata, never code or secrets); signatures are still verified, so it cannot forge events. Acceptable for test repos only. The App private key lives outside the repo locally and in SSM `/foyr/platform/` in AWS.
