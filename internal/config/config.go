@@ -23,6 +23,8 @@ type Config struct {
 	GitHubWebhookSecret []byte
 	GitHubAPIURL        string
 	DatabaseURL         string
+	InternalAddr        string // private listener for authproxy; never behind the public load balancer
+	InternalToken       string // shared with authproxy
 	AWSRegion           string
 	CodeBuildProject    string
 	Workers             int // build workers in this process; 0 turns building off
@@ -43,6 +45,7 @@ func Load(getenv func(string) string) (*Config, error) {
 		Addr:         or(getenv("FOYR_ADDR"), ":8080"),
 		GitHubAPIURL: strings.TrimRight(or(getenv("FOYR_GITHUB_API_URL"), "https://api.github.com"), "/"),
 	}
+	c.InternalAddr = or(getenv("FOYR_INTERNAL_ADDR"), ":9090")
 	c.AWSRegion = or(getenv("FOYR_AWS_REGION"), "ap-south-1")
 	c.CodeBuildProject = or(getenv("FOYR_CODEBUILD_PROJECT"), "foyr-build")
 	var errs []error
@@ -110,6 +113,15 @@ func Load(getenv func(string) string) (*Config, error) {
 				errs = append(errs, fmt.Errorf("%s is not set (needed to run apps; scripts/infra-env.sh writes it, or set FOYR_WORKERS=0)", name))
 			}
 		}
+	}
+
+	switch v := getenv("FOYR_INTERNAL_TOKEN"); {
+	case v == "":
+		errs = append(errs, missing("FOYR_INTERNAL_TOKEN"))
+	case len(v) < 32:
+		errs = append(errs, errors.New("FOYR_INTERNAL_TOKEN must be at least 32 characters"))
+	default:
+		c.InternalToken = v
 	}
 
 	key, err := loadKey(getenv)
