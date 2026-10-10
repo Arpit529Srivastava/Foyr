@@ -7,3 +7,9 @@ resource "aws_cloudwatch_log_group" "platform" {
   name              = "/foyr/platform"
   retention_in_days = 30
 }
+
+# Customer app output; one stream per task, app-<id>/app/<task> (ADR-029).
+resource "aws_cloudwatch_log_group" "apps" {
+  name              = "/foyr/apps"
+  retention_in_days = 14
+}
