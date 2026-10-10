@@ -84,10 +84,21 @@ func run() error {
 		IdleTimeout:       120 * time.Second,
 	}
 
-	errc := make(chan error, 1)
+	internal := &http.Server{
+		Addr:              cfg.InternalAddr,
+		Handler:           newInternalServer(st, cfg.InternalToken, log),
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+	}
+
+	errc := make(chan error, 2)
 	go func() {
 		log.Info("foyrd listening", "addr", cfg.Addr, "github_app_id", cfg.GitHubAppID)
 		errc <- srv.ListenAndServe()
+	}()
+	go func() {
+		log.Info("internal listener", "addr", cfg.InternalAddr)
+		errc <- internal.ListenAndServe()
 	}()
 
 	select {
@@ -98,6 +109,7 @@ func run() error {
 	log.Info("foyrd shutting down")
 	shutdown, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	_ = internal.Shutdown(shutdown)
 	if err := srv.Shutdown(shutdown); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

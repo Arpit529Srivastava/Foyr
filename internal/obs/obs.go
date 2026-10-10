@@ -59,7 +59,7 @@ func RequestID(log *slog.Logger, next http.Handler) http.Handler {
 		next.ServeHTTP(rec, r.WithContext(ctx))
 		// Health checks run every few seconds, so they log at debug level only.
 		level := slog.LevelInfo
-		if r.URL.Path == "/healthz" {
+		if r.URL.Path == "/healthz" || r.URL.Path == "/_foyr/healthz" {
 			level = slog.LevelDebug
 		}
 		l.Log(r.Context(), level, "request",

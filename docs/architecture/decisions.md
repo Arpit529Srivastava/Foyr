@@ -370,3 +370,17 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** The shortest safe path to a running app: no load balancer per app (quotas, cost), crashes explained in the developer's terms, and blue/green that never takes a working version down.
 
 **Consequences:** One small Spot task per live app (a few dollars a month each, from credits). foyrd needs the runtime settings from `tofu output`; `scripts/infra-env.sh` writes them. In AWS (step 4b) foyrd's task role adds ECS register, create, describe and delete, Cloud Map create, get, list and delete, and `iam:PassRole` on the tenant execution role only.
+
+## ADR-030: authproxy routing (step 8)
+**Date:** 2026-10-10 · **Status:** Accepted · **Builds on:** ADR-006, ADR-028, ADR-029
+
+**Decision:**
+- Every app gets a **slug** from its repo name (`octo/Foyr_Hello` → `foyr-hello`): 3 to 40 of `a-z0-9-`, never a reserved word (`app`, `api`, `auth`, `www`, `docs`, `admin`, `status`, `mail`, `static`, `cdn`, `foyr`), unique (`-2` … `-9`, then `app-<id>`), and kept when the repo is reconnected. The app is served at `<slug>.<APPS_DOMAIN>` (`foyr-hello.apps.foyr.online`, ADR-028).
+- foyrd serves `GET /internal/routes` on a **separate private listener** (`FOYR_INTERNAL_ADDR`, `:9090`) that the public load balancer never forwards to, protected by a shared bearer token (`FOYR_INTERNAL_TOKEN`, 32+ characters, constant-time compare). It lists every connected app with a live deployment: slug → `d-<id>`.
+- authproxy polls it every 3 s into an in-memory table swapped atomically. On any error it **keeps the last good table**, so apps keep serving while foyrd is down or redeploying. Until the first load, its health check (`/_foyr/healthz`, answered on every host) returns 503, so the load balancer doesn't send traffic to an empty proxy.
+- Each request: hostname → slug → `d-<id>.apps.foyr.internal:3000`. The proxy **removes every `X-Foyr-*` header** visitors send (Phase 1 adds the trusted ones), keeps the load balancer's `X-Forwarded-For` and `X-Forwarded-Proto`, preserves `Host`, passes `X-Request-Id`, streams responses, and uses dial and response-header timeouts. Unknown hosts get a branded 404, unreachable apps a branded 502.
+- Locally, `scripts/authproxy-dev.sh` serves `<slug>.apps.localhost:8081`; `FOYR_STATIC_ROUTES` points a slug at a local app.
+
+**Why:** No per-app load balancer rules or target groups (quotas), instant blue/green by changing one pointer, and the front door keeps working when the control plane doesn't.
+
+**Consequences:** In AWS, authproxy's security group may reach foyrd on 9090 and tenant tasks on 3000; nothing else may. A new route takes up to 3 s to appear.

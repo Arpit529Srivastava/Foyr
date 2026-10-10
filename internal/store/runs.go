@@ -83,3 +83,27 @@ func (s *Store) MarkRetired(ctx context.Context, id int64) error {
 			TraceID: d.TraceID, Details: map[string]any{"service": d.ECSService}})
 	})
 }
+
+// Route sends one app's hostname to its live deployment.
+type Route struct {
+	Slug         string `json:"slug"`
+	AppID        int64  `json:"app_id"`
+	DeploymentID int64  `json:"deployment_id"`
+	Service      string `json:"service"` // Cloud Map name, d-<id>
+}
+
+// Routes lists every connected app that has a running live deployment.
+func (s *Store) Routes(ctx context.Context) ([]Route, error) {
+	rows, err := s.Pool.Query(ctx, `SELECT a.slug, a.id, d.id, d.ecs_service FROM apps a
+		JOIN deployments d ON d.id = a.live_deployment_id
+		WHERE a.removed_at IS NULL AND a.slug IS NOT NULL AND d.status = 'live' AND d.ecs_service <> ''
+		ORDER BY a.slug`)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (Route, error) {
+		var rt Route
+		err := r.Scan(&rt.Slug, &rt.AppID, &rt.DeploymentID, &rt.Service)
+		return rt, err
+	})
+}

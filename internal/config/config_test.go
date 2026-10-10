@@ -40,6 +40,7 @@ func TestLoad(t *testing.T) {
 			"FOYR_TENANT_SECURITY_GROUP":   "sg-1",
 			"FOYR_TENANT_EXEC_ROLE_ARN":    "arn:aws:iam::1:role/foyr-exec-tenant",
 			"FOYR_APPS_NAMESPACE_ID":       "ns-1",
+			"FOYR_INTERNAL_TOKEN":          "internal-token-internal-token-123456",
 		}
 	}
 
@@ -70,6 +71,8 @@ func TestLoad(t *testing.T) {
 		{name: "negative workers", edit: func(e env) { e["FOYR_WORKERS"] = "-1" }, wantErr: []string{"FOYR_WORKERS"}},
 		{name: "runtime settings needed with workers", edit: func(e env) { delete(e, "FOYR_TENANT_SECURITY_GROUP"); delete(e, "FOYR_APPS_NAMESPACE_ID") },
 			wantErr: []string{"FOYR_TENANT_SECURITY_GROUP is not set", "FOYR_APPS_NAMESPACE_ID is not set"}},
+		{name: "missing internal token", edit: func(e env) { delete(e, "FOYR_INTERNAL_TOKEN") }, wantErr: []string{"FOYR_INTERNAL_TOKEN is not set"}},
+		{name: "short internal token", edit: func(e env) { e["FOYR_INTERNAL_TOKEN"] = "short" }, wantErr: []string{"at least 32"}},
 		{name: "bad capacity", edit: func(e env) { e["FOYR_APPS_CAPACITY"] = "EC2" }, wantErr: []string{"FOYR_APPS_CAPACITY"}},
 		{name: "everything missing is reported together", edit: func(e env) { clear(e) }, wantErr: []string{
 			"FOYR_GITHUB_APP_ID is not set", "FOYR_GITHUB_WEBHOOK_SECRET is not set", "FOYR_GITHUB_PRIVATE_KEY_PATH", "FOYR_DATABASE_URL is not set",
@@ -119,6 +122,7 @@ func TestWorkersCanBeTurnedOff(t *testing.T) {
 		"FOYR_GITHUB_PRIVATE_KEY":    string(testKeyPEM(t)),
 		"FOYR_DATABASE_URL":          "postgres://x",
 		"FOYR_WORKERS":               "0",
+		"FOYR_INTERNAL_TOKEN":        "internal-token-internal-token-123456",
 	}
 	c, err := Load(e.get)
 	if err != nil || c.Workers != 0 {

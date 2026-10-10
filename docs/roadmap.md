@@ -18,7 +18,7 @@ demo and lists what waits until after applying.
 - [x] Platform database, job queue, audit trail and delivery log; push → queued deployment (step 6a, ADR-025, ADR-026)
 - [x] Build: repo Dockerfile or Next.js template → CodeBuild → ECR (step 6b, ADR-027; first live builds 2026-10-10)
 - [x] Deploy: ECS service per deployment, Cloud Map discovery, health check (step 7, ADR-029; first live app 2026-10-10)
-- [ ] authproxy as a plain router with proxy-level blue/green and rollback
+- [ ] authproxy as a plain router with proxy-level blue/green and rollback (step 8: routing code done, ADR-030; running in AWS pending)
 - [ ] `<app>.apps.foyr.online` wildcard routing + reserved slugs for now (ADR-028); buy the separate apps domain before the first outside user
 - **Done when:** `git push` → live URL, working and repeatable.
 
