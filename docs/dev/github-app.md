@@ -22,11 +22,14 @@ so a smee.io channel relays webhooks to `localhost` (ADR-023).
    ```
 
 ## Every time
+Postgres must be running (docs/dev/database.md), then:
 ```bash
 scripts/foyrd-dev.sh
 ```
-It starts foyrd on `:8080` and the smee relay. Push to the test repo and watch for
-`push received` and then `repo access ok` in the JSON logs.
+It starts foyrd on `:8080` and the smee relay, applies database migrations and logs `database ready`.
+Push to the test repo's default branch and watch for `deployment queued` (with `deploy_id`) in the JSON
+logs. The deployment, its job, its audit event and the webhook delivery are now in `foyr_dev`
+(queries in docs/dev/database.md). Builds start in step 6b.
 
 ## Settings foyrd reads
 | Variable | Required | Notes |
@@ -34,5 +37,6 @@ It starts foyrd on `:8080` and the smee relay. Push to the test repo and watch f
 | `FOYR_GITHUB_APP_ID` | yes | positive number |
 | `FOYR_GITHUB_WEBHOOK_SECRET` | yes | at least 16 characters |
 | `FOYR_GITHUB_PRIVATE_KEY_PATH` or `FOYR_GITHUB_PRIVATE_KEY` | yes | file path locally, PEM text in AWS |
+| `FOYR_DATABASE_URL` | yes | the dev script defaults to local `foyr_dev` |
 | `FOYR_ADDR` | no | default `:8080` |
 | `FOYR_GITHUB_API_URL` | no | default `https://api.github.com` |

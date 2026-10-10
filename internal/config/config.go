@@ -22,6 +22,7 @@ type Config struct {
 	GitHubPrivateKey    *rsa.PrivateKey
 	GitHubWebhookSecret []byte
 	GitHubAPIURL        string
+	DatabaseURL         string
 }
 
 // Load reads settings through getenv and reports every problem at once.
@@ -50,6 +51,15 @@ func Load(getenv func(string) string) (*Config, error) {
 		errs = append(errs, fmt.Errorf("FOYR_GITHUB_WEBHOOK_SECRET must be at least %d characters", minSecretLen))
 	default:
 		c.GitHubWebhookSecret = []byte(v)
+	}
+
+	switch v := getenv("FOYR_DATABASE_URL"); {
+	case v == "":
+		errs = append(errs, missing("FOYR_DATABASE_URL"))
+	case !strings.HasPrefix(v, "postgres://") && !strings.HasPrefix(v, "postgresql://"):
+		errs = append(errs, errors.New("FOYR_DATABASE_URL must start with postgres://"))
+	default:
+		c.DatabaseURL = v
 	}
 
 	key, err := loadKey(getenv)
