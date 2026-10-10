@@ -102,3 +102,14 @@ func join(ss []string) string {
 	}
 	return out
 }
+
+func TestSetLogURL(t *testing.T) {
+	s := newStore(t)
+	d, _, _ := s.CreateDeployment(ctx, push(1, 10, sha(1)))
+	if err := s.SetLogURL(ctx, d.ID, "https://logs/exact"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.GetDeployment(ctx, d.ID); got.LogURL != "https://logs/exact" {
+		t.Fatalf("log url = %q", got.LogURL)
+	}
+}

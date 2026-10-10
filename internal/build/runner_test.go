@@ -323,3 +323,32 @@ func TestDescribeAndImageTag(t *testing.T) {
 		t.Errorf("ImageTag = %q", got)
 	}
 }
+
+func TestRunLogsEachFieldOnce(t *testing.T) {
+	rg := newRig(t, succeeded())
+	// The worker already tags its logger with the job's fields.
+	ctx := obs.WithLogger(context.Background(), obs.NewLogger(rg.logs).With(
+		"job_id", rg.job.ID, "deploy_id", rg.d.ID, "trace_id", "trace-1"))
+	if err := rg.r.Run(ctx, rg.job); err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(rg.logs.String()), "\n") {
+		for _, key := range []string{`"job_id":`, `"deploy_id":`, `"trace_id":`} {
+			if n := strings.Count(line, key); n > 1 {
+				t.Fatalf("%s appears %d times in %s", key, n, line)
+			}
+		}
+	}
+}
+
+func TestRunSavesExactLogLinkOnceKnown(t *testing.T) {
+	done := succeeded()
+	done.LogURL = "https://logs/1/stream-abc"
+	rg := newRig(t, done) // Start returns the generic https://logs/1
+	if err := rg.r.Run(rg.ctx, rg.job); err != nil {
+		t.Fatal(err)
+	}
+	if d := rg.deployment(t); d.LogURL != "https://logs/1/stream-abc" {
+		t.Fatalf("log url = %q, want the exact stream link", d.LogURL)
+	}
+}

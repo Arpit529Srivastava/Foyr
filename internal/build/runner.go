@@ -94,7 +94,8 @@ func (r *Runner) Run(ctx context.Context, job store.Job) error {
 	if err != nil {
 		return fmt.Errorf("load deployment: %w", err)
 	}
-	log := obs.Logger(ctx).With("deploy_id", d.ID, "app_id", d.AppID, "trace_id", d.TraceID, "job_id", job.ID)
+	// The worker's logger already carries job_id, deploy_id and trace_id.
+	log := obs.Logger(ctx).With("app_id", d.AppID)
 	ctx = obs.WithLogger(ctx, log)
 	switch d.Status {
 	case store.StatusBuilt, store.StatusFailed, store.StatusCanceled:
@@ -188,6 +189,13 @@ func (r *Runner) watch(ctx context.Context, d store.Deployment) error {
 		case err != nil:
 			log.Warn("build status failed", "build_id", d.BuildID, "err", err)
 		default:
+			if b.LogURL != "" && b.LogURL != d.LogURL {
+				if err := r.Store.SetLogURL(ctx, d.ID, b.LogURL); err != nil {
+					log.Warn("save log link failed", "err", err)
+				} else {
+					d.LogURL = b.LogURL
+				}
+			}
 			steps := Steps(b)
 			if err := r.Store.SyncSteps(ctx, d.ID, steps); err != nil {
 				log.Warn("save steps failed", "err", err)
