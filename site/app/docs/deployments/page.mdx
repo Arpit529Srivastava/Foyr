@@ -29,6 +29,23 @@ Your app must listen on the port in the `PORT` environment variable.
 
 <Callout type="warning">If the build or health check fails, nothing changes for your users. The previous version keeps serving and the deployment is marked **Failed** with its logs.</Callout>
 
+## Which pushes deploy
+
+- Only pushes to your **default branch** deploy. Pushes to other branches and tags are recorded but not built.
+- Pushing the same commit again does not build it twice.
+- A build that takes longer than **20 minutes** is stopped and marked **Failed**.
+- Build logs are kept for 30 days. The deployment itself, with its steps and result, is kept for good.
+
+## History and activity log
+
+Every deployment keeps a full record, so you can debug without asking us:
+
+- **Who and what:** who pushed, the commit and its message, and the branch.
+- **Each step:** when it started, how long it took, and how it ended.
+- **Why it failed:** the failed step, the error, the last lines of the log, and a link to the full log.
+
+An **activity log** records who did what across your apps: repositories connected or removed, deployments started and finished, and, as they arrive, invites, role changes and environment variable changes. Entries can't be edited or deleted, so it is a trail you can trust.
+
 ## Rolling back
 
 Every live deployment can be restored with **Roll back**. Rollback only moves traffic to a version that was already built, so it takes seconds.
