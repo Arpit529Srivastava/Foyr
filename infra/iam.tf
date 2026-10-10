@@ -48,13 +48,19 @@ data "aws_iam_policy_document" "codebuild" {
   }
 
   statement {
+    sid       = "ReadBuildTokens"
+    actions   = ["ssm:GetParameters"]
+    resources = ["arn:aws:ssm:${var.region}:${local.account_id}:parameter/foyr/builds/*"]
+  }
+
+  statement {
     sid       = "BuildLogs"
     actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
     resources = ["${aws_cloudwatch_log_group.builds.arn}:*"]
   }
 }
 
-# Badge for builds: push to apps/* and write build logs, nothing else.
+# Badge for builds: read its clone token, push to apps/* and write build logs, nothing else.
 resource "aws_iam_role" "codebuild" {
   name               = "foyr-codebuild"
   assume_role_policy = data.aws_iam_policy_document.codebuild_trust.json

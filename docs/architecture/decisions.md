@@ -328,3 +328,21 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** Teams with many users need to answer "who did what, when, and why did it break" themselves. Retrofitting audit, tracing, tenant keys and partitions later means downtime; adding them now costs little.
 
 **Consequences:** Postgres holds small, important facts; anything large or high-volume goes to services built for volume. Scaling path in system design §12.
+
+## ADR-027: The build worker (step 6b)
+**Date:** 2026-10-10 · **Status:** Accepted · **Builds on:** ADR-020, ADR-024, ADR-025
+
+**Decision:**
+- foyrd runs a **worker pool** (`FOYR_WORKERS`, default 2; 0 turns building off). Each worker claims a job, renews its 2-minute lease every 30 s (heartbeat), and completes, retries or, on shutdown, hands the job back without counting the attempt. If the lease is lost, the job is cancelled because another worker owns it.
+- One build = one run of the shared CodeBuild project `foyr-build`. foyrd passes `REPO_URL`, `COMMIT`, `IMAGE_URI` and the **name** of an SSM parameter holding the clone token (`/foyr/builds/d-<id>/token`, SecureString). CodeBuild reads it as a `PARAMETER_STORE` variable, so the value is masked in logs. foyrd deletes it once the clone step is over, or when the build ends. If foyrd dies first, the token still expires within an hour.
+- The clone sends the token in an `http.extraHeader`, never in the URL, so it is not written to `.git/config` or printed in errors.
+- **Steps come from CodeBuild phases**, not from markers in the log: Prepare (submitted to install), Clone (PRE_BUILD), Build image (BUILD), Push image (POST_BUILD). They are saved on every poll (10 s) with times and the log link. Build and clone abort on failure, so later steps show as skipped.
+- **Resume, don't restart:** the CodeBuild ID is saved as soon as the build starts. A job picked up again after a crash or restart watches that build instead of starting a second one.
+- **Who is at fault decides retries.** Platform errors (AWS throttling, network) are retried after 30 s, then 2 min, at most 3 attempts. After that the deployment fails with "this is on our side". Customer failures (build error, timeout, no Dockerfile, App removed from the repo) are recorded at once with the failed step, the reason and the last 30 log lines, and are not retried.
+- **Images:** one ECR repository per app, `apps/<app id>`, created by foyrd on first build with immutable tags, scan on push and a keep-last-10 lifecycle rule. Tag `d<deployment id>-<12-char commit>` is unique per deployment, so a tag is never overwritten.
+- **What gets built:** the repo's `Dockerfile` if present (any language). Otherwise, if `package.json` uses `next`, Foyr's Next.js template (`templates/nextjs/Dockerfile`, embedded into the buildspec by OpenTofu). Otherwise the build fails with a message asking for a Dockerfile.
+- foyrd checks its AWS credentials at startup (STS) and refuses to start workers without them. Locally it uses the `foyr` SSO profile. In AWS (step 4b) it gets a task role with exactly these permissions: CodeBuild start and read, ECR create and describe repo plus lifecycle, SSM put and delete under `/foyr/builds/`, and read build logs.
+
+**Why:** The shortest path to a reliable, debuggable build: no extra services, the token never touches disk or logs, crashes don't lose or duplicate builds, and customers see exactly which step failed and why.
+
+**Consequences:** CodeBuild's role gains `ssm:GetParameters` on `/foyr/builds/*` only. The CodeBuild concurrent-build quota caps parallel builds account-wide; raise it when needed.

@@ -23,4 +23,4 @@ Conventions:
 - Platform data: every state change writes its audit event in the same transaction; every tenant row carries `installation_id` (ADR-026). New tables go in a new numbered migration, never edit a merged one.
 
 Lifecycle (ADR-018): every change follows plan → branch → tests first or alongside → implement → local checks → signed commit → PR → CI green → merge → live check (`foyr-live-check`). No feature code without tests: Go packages get `_test.go` files (table-driven where useful), site changes must keep `npm run check` green, infra changes must pass `tofu fmt -check` and `tofu validate`. Bug fixes start with a failing test. Nothing runs against AWS (`tofu apply`) without explicit approval.
-- Local foyrd with the dev GitHub App: `scripts/foyrd-dev.sh` (docs/dev/github-app.md). Secrets live in `~/.config/foyr/`, never in the repo.
+- Local foyrd with the dev GitHub App: `scripts/foyrd-dev.sh` (docs/dev/github-app.md). Its build workers need `aws sso login --profile foyr`, or `FOYR_WORKERS=0` (docs/dev/builds.md). Secrets live in `~/.config/foyr/`, never in the repo.

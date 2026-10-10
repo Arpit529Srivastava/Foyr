@@ -28,7 +28,7 @@ The proxy is on the path of every request to every app, so it is built to keep w
 - **Network:** apps can only receive traffic from the proxy, and cannot reach each other or Foyr's internal services.
 - **Credentials:** apps run with no cloud credentials of their own.
 - **Domains:** apps live on `foyrapps.online`, a different domain from Foyr itself (`foyr.online`), so an app can never set cookies for the dashboard or login pages.
-- **Builds:** your code builds in a fresh machine each time, with read-only access to your repo that expires within the hour.
+- **Builds:** your code builds in a fresh machine each time, with read-only access to your repo that expires within the hour. That access token never appears in build logs or in your image.
 
 ## Zero-downtime deploys
 

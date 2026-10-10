@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -198,5 +199,22 @@ func TestTokenNeverPrintsItsValue(t *testing.T) {
 	out := fmt.Sprintf("%v %s %+v %#v", tok, tok, tok, tok) + buf.String()
 	if strings.Contains(out, "realsecret") {
 		t.Fatalf("token value leaked: %s", out)
+	}
+}
+
+func TestNoAccess(t *testing.T) {
+	for _, tt := range []struct {
+		err  error
+		want bool
+	}{
+		{fmt.Errorf("wrapped: %w", &StatusError{Code: 404}), true},
+		{&StatusError{Code: 401}, true},
+		{&StatusError{Code: 403}, true},
+		{&StatusError{Code: 500}, false},
+		{errors.New("timeout"), false},
+	} {
+		if got := NoAccess(tt.err); got != tt.want {
+			t.Errorf("NoAccess(%v) = %v, want %v", tt.err, got, tt.want)
+		}
 	}
 }

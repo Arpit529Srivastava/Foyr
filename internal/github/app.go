@@ -115,6 +115,17 @@ func (a *App) CheckCommit(ctx context.Context, tok Token, repo, sha string) erro
 }
 
 // do sends req and decodes a JSON body into out when the status matches want.
+// StatusError is an unexpected HTTP status from GitHub.
+type StatusError struct{ Code int }
+
+func (e *StatusError) Error() string { return fmt.Sprintf("status %d", e.Code) }
+
+// NoAccess reports whether err means the App cannot reach the installation or repo (401, 403, 404).
+func NoAccess(err error) bool {
+	var se *StatusError
+	return errors.As(err, &se) && (se.Code == 401 || se.Code == 403 || se.Code == 404)
+}
+
 func (a *App) do(req *http.Request, want int, out any) error {
 	resp, err := a.client().Do(req)
 	if err != nil {
@@ -124,7 +135,7 @@ func (a *App) do(req *http.Request, want int, out any) error {
 	body := io.LimitReader(resp.Body, 1<<20)
 	if resp.StatusCode != want {
 		_, _ = io.Copy(io.Discard, body)
-		return fmt.Errorf("status %d", resp.StatusCode)
+		return &StatusError{Code: resp.StatusCode}
 	}
 	if out == nil {
 		_, _ = io.Copy(io.Discard, body)

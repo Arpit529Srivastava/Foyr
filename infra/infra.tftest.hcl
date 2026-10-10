@@ -132,10 +132,25 @@ run "build_and_run" {
   assert {
     condition = alltrue(flatten([
       for s in data.aws_iam_policy_document.codebuild.statement : [
-        for r in s.resources : s.sid == "EcrLogin" || endswith(r, ":repository/apps/*") || startswith(r, "arn:aws:logs:")
+        for r in s.resources : s.sid == "EcrLogin" || endswith(r, ":repository/apps/*") || startswith(r, "arn:aws:logs:") || endswith(r, ":parameter/foyr/builds/*")
       ]
     ]))
-    error_message = "CodeBuild may only push to apps/* repositories"
+    error_message = "CodeBuild may only push to apps/* repositories and read /foyr/builds/* tokens"
+  }
+
+  assert {
+    condition = alltrue([
+      for s in data.aws_iam_policy_document.codebuild.statement : s.actions == toset(["ssm:GetParameters"])
+      if s.sid == "ReadBuildTokens"
+    ])
+    error_message = "CodeBuild may only read build tokens, never write SSM (ADR-027)"
+  }
+
+  assert {
+    condition = alltrue([
+      for s in aws_codebuild_project.build.source : strcontains(s.buildspec, filebase64("../templates/nextjs/Dockerfile")) && strcontains(s.buildspec, "http.extraHeader") && !strcontains(s.buildspec, "x-access-token@")
+    ])
+    error_message = "buildspec must embed the Next.js template and clone with the token in a header, not the URL"
   }
 
   assert {

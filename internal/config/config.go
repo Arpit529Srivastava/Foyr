@@ -23,6 +23,9 @@ type Config struct {
 	GitHubWebhookSecret []byte
 	GitHubAPIURL        string
 	DatabaseURL         string
+	AWSRegion           string
+	CodeBuildProject    string
+	Workers             int // build workers in this process; 0 turns building off
 }
 
 // Load reads settings through getenv and reports every problem at once.
@@ -31,7 +34,18 @@ func Load(getenv func(string) string) (*Config, error) {
 		Addr:         or(getenv("FOYR_ADDR"), ":8080"),
 		GitHubAPIURL: strings.TrimRight(or(getenv("FOYR_GITHUB_API_URL"), "https://api.github.com"), "/"),
 	}
+	c.AWSRegion = or(getenv("FOYR_AWS_REGION"), "ap-south-1")
+	c.CodeBuildProject = or(getenv("FOYR_CODEBUILD_PROJECT"), "foyr-build")
 	var errs []error
+
+	c.Workers = 2
+	if v := getenv("FOYR_WORKERS"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 || n > 64 {
+			errs = append(errs, fmt.Errorf("FOYR_WORKERS must be a number from 0 to 64, got %q", v))
+		}
+		c.Workers = n
+	}
 
 	switch v := getenv("FOYR_GITHUB_APP_ID"); {
 	case v == "":

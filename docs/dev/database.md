@@ -119,11 +119,14 @@ To stop Postgres and save battery: `brew services stop postgresql@17`.
 | `installations` | a GitHub account that installed the App | forever (marked `removed_at` on uninstall) |
 | `apps` | a repo connected to Foyr | forever (marked `removed_at`) |
 | `deployments` | one push of one commit: who pushed, commit, message, trace ID, status, failed step and reason, times | forever |
-| `deployment_steps` | one step of a deployment (clone, build, push...) with times and a log link | with the deployment (filled from 6b) |
+| `deployment_steps` | one step of a deployment (Prepare, Clone, Build image, Push image) with times, message and log link | with the deployment |
 | `deployment_events` | one line of a deployment's timeline | with the deployment |
 | `jobs` | background work for a worker | 7 days after finishing |
 | `webhook_deliveries` | one webhook GitHub sent us: result, detail, duration, attempts | 30 days |
 | `audit_events` | who did what, when (append-only, monthly partitions) | forever for now; per-plan retention later (ADR-026) |
+
+Deployments also store `build_id` (the CodeBuild run, used to resume after a crash), `image_uri` and
+`log_url` (migration `002_builds`). How builds work: docs/dev/builds.md.
 
 Deployment statuses: `queued → building → built` or `failed`, and `canceled`. Anything else is
 refused (`ErrBadTransition`). Step 6b and later add release statuses.
@@ -156,6 +159,15 @@ SELECT 'deployment' AS kind, id::text FROM deployments WHERE trace_id = '<id>'
 UNION ALL SELECT 'job', id::text FROM jobs WHERE trace_id = '<id>'
 UNION ALL SELECT 'audit', action FROM audit_events WHERE trace_id = '<id>';
 ```
+A deployment's steps, CI style:
+```sql
+SELECT position, name, status, finished_at - started_at AS took, message FROM deployment_steps
+WHERE deployment_id = 1 ORDER BY position;
+```
+Why did it fail?
+```sql
+SELECT status, failure_step, failure_reason, log_url FROM deployments WHERE id = 1;
+```
 The job queue:
 ```sql
 SELECT id, status, attempts, run_after, locked_by, lease_until, last_error FROM jobs ORDER BY id DESC LIMIT 10;
@@ -173,6 +185,7 @@ SELECT id, status, attempts, run_after, locked_by, lease_until, last_error FROM 
 | `internal/store/maintenance.go` | `RecordDelivery`, `EnsureAuditPartitions`, `Prune` |
 | `internal/store/store.go` | the audit helper and `ListAudit` |
 | `cmd/foyrd/server.go` | webhook → store |
+| `internal/store/builds.go` | `GetApp`, `SetBuild`, `SyncSteps`, `Steps`, `ReleaseJob` |
 | `cmd/foyrd/maintenance.go` | daily partitions and cleanup |
 
 ## Adding a migration

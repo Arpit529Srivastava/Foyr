@@ -688,7 +688,10 @@ function Comparison() {
 /* ───────────────────────── FAQ ───────────────────────── */
 
 const FAQ = [
-  { q: "What kind of apps can I deploy?", a: "Next.js first. Node and Python are next, and any app with a Dockerfile works." },
+  {
+    q: "What kind of apps can I deploy?",
+    a: "Any app with a Dockerfile, in any language. Without one, Foyr detects Next.js. Node and Python detection are next.",
+  },
   {
     q: "Do I need to change my code to get login?",
     a: "No. The proxy handles it before requests reach your app. The SDK is optional.",

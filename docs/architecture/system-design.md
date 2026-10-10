@@ -91,9 +91,12 @@ Foyr uses a **GitHub App** (not a plain OAuth app):
 ```
 push ─► GitHub webhook ─► foyrd, one transaction: Deployment(status=queued) + timeline event
                                  + build Job + audit event; webhook delivery recorded (ADR-025, ADR-026)
-job worker (fair: max 2 running per customer, leased, retried on platform errors) ─► start CodeBuild(repo, commit, installation token)
-   CodeBuild: clone → detect (repo Dockerfile? else Next.js template) → docker build → push ECR:<app>:<sha>
-   logs ─► CloudWatch ─► streamed to dashboard
+job worker (fair: max 2 running per customer, leased + heartbeat, retried on platform errors) (ADR-027)
+   token ─► SSM /foyr/builds/d-<id>/token ─► CodeBuild reads it masked; deleted after clone
+   CodeBuild: clone (token in header) → detect (repo Dockerfile? else Next.js template) → docker build
+              → push ECR apps/<app>:d<id>-<sha12>
+   worker polls every 10 s: phases → steps (Prepare, Clone, Build image, Push image) with times
+   logs ─► CloudWatch; failure reason = failed step + last 30 log lines + link
 foyrd ─► register ECS task definition (image, env from SSM, cpu/mem)
       ─► create ECS service "green" for this deployment (Cloud Map name d-<id>.apps.foyr.internal)
       ─► wait for health check (GET /health or / → 2xx within timeout)
@@ -283,7 +286,7 @@ foyr/
   web/                              # Next.js dashboard
   site/                             # marketing site + public docs (Vercel)
   sdk/js/                           # @foyr/auth
-  templates/nextjs/Dockerfile       # build template
+  templates/nextjs/Dockerfile       # build template, embedded into the buildspec (ADR-027)
   infra/                            # OpenTofu
   docs/                             # internal + public documentation source
 ```
