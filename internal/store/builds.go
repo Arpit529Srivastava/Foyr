@@ -46,6 +46,12 @@ func (s *Store) SetBuild(ctx context.Context, deploymentID int64, buildID, logUR
 	})
 }
 
+// SetLogURL replaces the deployment's log link once CodeBuild knows the exact stream.
+func (s *Store) SetLogURL(ctx context.Context, deploymentID int64, url string) error {
+	_, err := s.Pool.Exec(ctx, `UPDATE deployments SET log_url = $2 WHERE id = $1`, deploymentID, clip(url, 1000))
+	return err
+}
+
 // Step statuses.
 const (
 	StepPending   = "pending"
