@@ -12,6 +12,7 @@ build done ─► deploy job ─► task definition app-<app> (image, PORT=3000,
                                         previous live ─► superseded ─► retire job in 5 min
                       task STOPPED or 6 min passed ─► failed (+ reason, exit code, last 30 log lines)
                                         the new service is deleted; the previous live one keeps serving
+                                        a retire job 1 min later removes any leftovers (Cloud Map name)
 ```
 
 ## Running it locally
@@ -46,7 +47,7 @@ Push to foyr-hello. Logs go `build succeeded`, `service started`, `deployment li
 - Why: fine for early apps, because the service restarts the task. Paid plans can use `FARGATE`.
 
 **Container health check**: a command ECS runs inside the container every 10 s.
-- Example 1: `wget http://127.0.0.1:3000/api/health` returns 200, so the task is HEALTHY.
+- Example 1: `wget http://127.0.0.1:3000/api/health` returns 200, so the task is HEALTHY. It also tries the task's own address (`$HOSTNAME`): Fargate sets that variable to the task's name, and Next.js then listens only there.
 - Example 2: a nurse checking a pulse instead of trusting "I'm fine".
 - Why: "the process started" is not "the app works"; only a healthy version gets traffic.
 
