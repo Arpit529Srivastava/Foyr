@@ -23,8 +23,9 @@ func TestRequestID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			var seen string
+			var seen, inside string
 			h := RequestID(NewLogger(&buf), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				inside = RequestIDFrom(r.Context())
 				Logger(r.Context()).Info("inside")
 				w.WriteHeader(http.StatusTeapot)
 			}))
@@ -38,6 +39,9 @@ func TestRequestID(t *testing.T) {
 			seen = rec.Header().Get("X-Request-Id")
 			if !validID.MatchString(seen) {
 				t.Fatalf("response id %q is not valid", seen)
+			}
+			if inside != seen {
+				t.Fatalf("RequestIDFrom = %q, want %q", inside, seen)
 			}
 			if tt.wantSame != (seen == tt.incoming) {
 				t.Fatalf("id = %q, incoming = %q, wantSame = %v", seen, tt.incoming, tt.wantSame)

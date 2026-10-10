@@ -12,7 +12,10 @@ import (
 	"time"
 )
 
-type loggerKey struct{}
+type (
+	loggerKey    struct{}
+	requestIDKey struct{}
+)
 
 // validID limits incoming request IDs to short, log-safe values.
 var validID = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
@@ -35,6 +38,12 @@ func Logger(ctx context.Context) *slog.Logger {
 	return slog.Default()
 }
 
+// RequestIDFrom returns the request ID set by RequestID, used as the trace ID (ADR-026).
+func RequestIDFrom(ctx context.Context) string {
+	id, _ := ctx.Value(requestIDKey{}).(string)
+	return id
+}
+
 // RequestID tags every request with an ID, logs it, and logs one summary line per request.
 func RequestID(log *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +55,8 @@ func RequestID(log *slog.Logger, next http.Handler) http.Handler {
 		l := log.With("request_id", id)
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		start := time.Now()
-		next.ServeHTTP(rec, r.WithContext(WithLogger(r.Context(), l)))
+		ctx := context.WithValue(WithLogger(r.Context(), l), requestIDKey{}, id)
+		next.ServeHTTP(rec, r.WithContext(ctx))
 		// Health checks run every few seconds, so they log at debug level only.
 		level := slog.LevelInfo
 		if r.URL.Path == "/healthz" {
