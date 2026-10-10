@@ -163,7 +163,12 @@ run "build_and_run" {
   }
 
   assert {
-    condition     = aws_cloudwatch_log_group.builds.retention_in_days > 0 && aws_cloudwatch_log_group.platform.retention_in_days > 0
+    condition     = length(aws_security_group.tenant.ingress) == 0 && aws_vpc_security_group_egress_rule.tenant_all.cidr_ipv4 == "0.0.0.0/0"
+    error_message = "tenant tasks accept no inbound traffic until authproxy exists (ADR-029)"
+  }
+
+  assert {
+    condition     = aws_cloudwatch_log_group.builds.retention_in_days > 0 && aws_cloudwatch_log_group.platform.retention_in_days > 0 && aws_cloudwatch_log_group.apps.retention_in_days > 0
     error_message = "every log group must set retention (ADR-019)"
   }
 

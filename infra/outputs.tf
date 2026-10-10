@@ -37,3 +37,11 @@ output "exec_role_arns" {
 output "alerts_topic_arn" {
   value = aws_sns_topic.alerts.arn
 }
+
+output "tenant_security_group_id" {
+  value = aws_security_group.tenant.id
+}
+
+output "apps_log_group_name" {
+  value = aws_cloudwatch_log_group.apps.name
+}

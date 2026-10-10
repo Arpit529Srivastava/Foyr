@@ -3,7 +3,8 @@
 set -euo pipefail
 ENV_FILE="${FOYRD_ENV:-$HOME/.config/foyr/foyrd-dev.env}"
 [ -f "$ENV_FILE" ] || { echo "missing $ENV_FILE (see docs/dev/github-app.md)" >&2; exit 1; }
-set -a; source "$ENV_FILE"; set +a
+INFRA_ENV="$HOME/.config/foyr/infra.env"
+set -a; source "$ENV_FILE"; [ -f "$INFRA_ENV" ] && source "$INFRA_ENV"; set +a
 cd "$(dirname "$0")/.."
 export AWS_PROFILE="${AWS_PROFILE:-foyr}"
 export FOYR_DATABASE_URL="${FOYR_DATABASE_URL:-postgres://$USER@localhost:5432/foyr_dev?sslmode=disable}"

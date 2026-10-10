@@ -22,6 +22,7 @@ import (
 	"github.com/Arpit529Srivastava/Foyr/internal/db"
 	"github.com/Arpit529Srivastava/Foyr/internal/github"
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
+	apprun "github.com/Arpit529Srivastava/Foyr/internal/run"
 	"github.com/Arpit529Srivastava/Foyr/internal/store"
 	"github.com/Arpit529Srivastava/Foyr/internal/worker"
 )
@@ -115,16 +116,25 @@ func newPool(ctx context.Context, cfg *config.Config, st *store.Store, log *slog
 	}
 	log.Info("aws ready", "account", *id.Account, "region", cfg.AWSRegion)
 
+	logs := awsx.NewLogs(ac)
+	rt := awsx.NewRuntime(ac)
+	rt.Cluster, rt.Subnets, rt.SecurityGroup = cfg.ECSCluster, cfg.TenantSubnets, cfg.TenantSecurityGroup
+	rt.ExecRoleARN, rt.LogGroup, rt.NamespaceID, rt.Capacity = cfg.TenantExecRoleARN, cfg.AppsLogGroup, cfg.AppsNamespaceID, cfg.AppsCapacity
+
 	host, _ := os.Hostname()
 	return &worker.Pool{
 		Queue: st,
-		Runner: &build.Runner{
-			Store:    st,
-			Builds:   awsx.NewBuilds(ac, cfg.CodeBuildProject),
-			Registry: awsx.NewRegistry(ac),
-			Secrets:  awsx.NewSecrets(ac),
-			Logs:     awsx.NewLogs(ac),
-			Tokens:   &github.App{ID: cfg.GitHubAppID, Key: cfg.GitHubPrivateKey, BaseURL: cfg.GitHubAPIURL},
+		Runners: map[string]worker.Runner{
+			store.JobBuild: &build.Runner{
+				Store:    st,
+				Builds:   awsx.NewBuilds(ac, cfg.CodeBuildProject),
+				Registry: awsx.NewRegistry(ac),
+				Secrets:  awsx.NewSecrets(ac),
+				Logs:     logs,
+				Tokens:   &github.App{ID: cfg.GitHubAppID, Key: cfg.GitHubPrivateKey, BaseURL: cfg.GitHubAPIURL},
+			},
+			store.JobDeploy: &apprun.Runner{Store: st, Platform: rt, Logs: logs, LogGroup: cfg.AppsLogGroup, Region: cfg.AWSRegion},
+			store.JobRetire: &apprun.Retirer{Store: st, Platform: rt},
 		},
 		Log:     log,
 		Name:    fmt.Sprintf("%s-%d", host, os.Getpid()),

@@ -17,14 +17,15 @@ type App struct {
 	FullName       string
 	DefaultBranch  string
 	Removed        bool
+	LiveDeployment int64 // 0 when nothing is live
 }
 
 // GetApp returns one app.
 func (s *Store) GetApp(ctx context.Context, id int64) (App, error) {
 	var a App
 	err := s.Pool.QueryRow(ctx, `SELECT id, installation_id, github_repo_id, full_name, default_branch,
-		removed_at IS NOT NULL FROM apps WHERE id = $1`, id).
-		Scan(&a.ID, &a.InstallationID, &a.GitHubRepoID, &a.FullName, &a.DefaultBranch, &a.Removed)
+		removed_at IS NOT NULL, coalesce(live_deployment_id, 0) FROM apps WHERE id = $1`, id).
+		Scan(&a.ID, &a.InstallationID, &a.GitHubRepoID, &a.FullName, &a.DefaultBranch, &a.Removed, &a.LiveDeployment)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}

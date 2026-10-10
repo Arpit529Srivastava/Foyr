@@ -42,5 +42,7 @@ Queries in docs/dev/database.md; how builds work in docs/dev/builds.md.
 | `FOYR_WORKERS` | no | build workers, default 2; `0` turns building off |
 | `FOYR_AWS_REGION` | no | default `ap-south-1` |
 | `FOYR_CODEBUILD_PROJECT` | no | default `foyr-build` |
+| `FOYR_TENANT_SUBNETS`, `FOYR_TENANT_SECURITY_GROUP`, `FOYR_TENANT_EXEC_ROLE_ARN`, `FOYR_APPS_NAMESPACE_ID` | with workers | from `scripts/infra-env.sh` (docs/dev/deploys.md) |
+| `FOYR_ECS_CLUSTER`, `FOYR_APPS_LOG_GROUP`, `FOYR_APPS_CAPACITY` | no | `foyr`, `/foyr/apps`, `FARGATE_SPOT` |
 | `FOYR_ADDR` | no | default `:8080` |
 | `FOYR_GITHUB_API_URL` | no | default `https://api.github.com` |

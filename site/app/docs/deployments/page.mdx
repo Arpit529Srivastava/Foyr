@@ -24,7 +24,7 @@ Your app must listen on the port in the `PORT` environment variable.
 1. **Queued.** GitHub tells Foyr about the push.
 2. **Building.** Your repo is built in an isolated build machine, in four steps you can follow: Prepare, Clone, Build image, Push image. Each shows its duration, and a failed step shows the error and the last lines of the log, with a link to the full log.
 3. **Starting.** The new version starts next to the one that's live.
-4. **Health check.** Foyr requests `/api/health` (or `/` if that route doesn't exist) and waits for a `2xx`.
+4. **Health check.** Foyr checks `/api/health`, then `/`, and waits up to six minutes for a `2xx`. If the app crashes or never answers, the deployment fails with the reason and the last lines of your app's log.
 5. **Live.** Traffic switches to the new version with zero downtime. The old one is drained after five minutes.
 
 <Callout type="warning">If the build or health check fails, nothing changes for your users. The previous version keeps serving and the deployment is marked **Failed** with its logs.</Callout>

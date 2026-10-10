@@ -1,5 +1,7 @@
 # How builds work (step 6b)
 
+After a successful build the image is started and checked: docs/dev/deploys.md.
+
 A push becomes a queued deployment (docs/dev/database.md). A **worker** inside foyrd picks it up,
 runs it on **CodeBuild**, records every step, and ends with an image in **ECR** or a clear failure.
 Decision: ADR-027.
