@@ -111,6 +111,12 @@ instant pointer flip.
 
 Service discovery: authproxy reaches tenant tasks through **AWS Cloud Map** private DNS.
 
+### 4b-ii. Routing (step 8, ADR-030)
+
+authproxy polls foyrd's private `/internal/routes` (slug → live `d-<id>`) every 3 s, keeps the last good
+table if foyrd is down, and forwards `<slug>.<APPS_DOMAIN>` to `d-<id>.apps.foyr.internal:3000`,
+stripping visitor-sent `X-Foyr-*` headers. Guide: docs/dev/routing.md.
+
 ### 4c. End user opens a protected app
 
 ```
