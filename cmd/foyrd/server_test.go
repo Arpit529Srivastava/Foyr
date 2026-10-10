@@ -2,9 +2,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,14 +12,17 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/Arpit529Srivastava/Foyr/internal/config"
+	"github.com/Arpit529Srivastava/Foyr/internal/db/dbtest"
 	"github.com/Arpit529Srivastava/Foyr/internal/github"
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
+	"github.com/Arpit529Srivastava/Foyr/internal/store"
 )
 
-// syncBuffer is a log sink that is safe for the background goroutine.
+var ctx = context.Background()
+
+// syncBuffer is a log sink that is safe for concurrent writes.
 type syncBuffer struct {
 	mu sync.Mutex
 	b  bytes.Buffer
@@ -32,96 +35,168 @@ func (s *syncBuffer) Write(p []byte) (int, error) {
 }
 func (s *syncBuffer) String() string { s.mu.Lock(); defer s.mu.Unlock(); return s.b.String() }
 
-func waitFor(t *testing.T, logs *syncBuffer, want string) {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if strings.Contains(logs.String(), want) {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("log never contained %q:\n%s", want, logs.String())
+type env struct {
+	h      http.Handler
+	st     *store.Store
+	logs   *syncBuffer
+	secret []byte
 }
 
-func setup(t *testing.T, githubStatus int) (http.Handler, *syncBuffer, []byte) {
+func setup(t *testing.T) env {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case strings.HasSuffix(r.URL.Path, "/access_tokens"):
-			w.WriteHeader(githubStatus)
-			fmt.Fprint(w, `{"token":"ghs_realsecretvalue","expires_at":"2026-10-10T10:00:00Z"}`)
-		case strings.Contains(r.URL.Path, "/commits/"):
-			fmt.Fprint(w, `{}`)
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	t.Cleanup(fake.Close)
-
 	secret := []byte("a-long-random-webhook-secret")
-	cfg := &config.Config{GitHubAppID: 123456, GitHubPrivateKey: key, GitHubWebhookSecret: secret, GitHubAPIURL: fake.URL}
+	cfg := &config.Config{GitHubAppID: 123456, GitHubPrivateKey: key, GitHubWebhookSecret: secret}
+	st := store.New(dbtest.New(t))
 	logs := &syncBuffer{}
-	return newServer(cfg, obs.NewLogger(logs)), logs, secret
+	return env{h: newServer(cfg, obs.NewLogger(logs), st), st: st, logs: logs, secret: secret}
 }
 
-func post(h http.Handler, event string, body []byte, secret []byte) int {
+func fixture(t *testing.T, name string) []byte {
+	t.Helper()
+	b, err := os.ReadFile("../../internal/github/testdata/" + name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func (e env) post(event, delivery string, body []byte) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/webhooks/github", bytes.NewReader(body))
 	req.Header.Set("X-GitHub-Event", event)
-	req.Header.Set("X-GitHub-Delivery", "d-1")
-	req.Header.Set("X-Hub-Signature-256", github.Sign(secret, body))
+	req.Header.Set("X-GitHub-Delivery", delivery)
+	req.Header.Set("X-Hub-Signature-256", github.Sign(e.secret, body))
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	return rec.Code
+	e.h.ServeHTTP(rec, req)
+	return rec
 }
 
-func TestPushEndToEnd(t *testing.T) {
-	h, logs, secret := setup(t, http.StatusCreated)
-	body, _ := os.ReadFile("../../internal/github/testdata/push.json")
-	if code := post(h, "push", body, secret); code != http.StatusAccepted {
-		t.Fatalf("status = %d", code)
+func (e env) count(t *testing.T, sql string, args ...any) int {
+	t.Helper()
+	var n int
+	if err := e.st.Pool.QueryRow(ctx, sql, args...).Scan(&n); err != nil {
+		t.Fatal(err)
 	}
-	waitFor(t, logs, `"msg":"push received"`)
-	waitFor(t, logs, `"msg":"repo access ok"`)
-	if strings.Contains(logs.String(), "realsecret") {
-		t.Fatal("installation token leaked into logs")
+	return n
+}
+
+func TestPushQueuesTracedDeployment(t *testing.T) {
+	e := setup(t)
+	rec := e.post("push", "d-1", fixture(t, "push.json"))
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d", rec.Code)
 	}
-	if !strings.Contains(logs.String(), `"request_id"`) {
-		t.Fatal("logs missing request id")
+	trace := rec.Header().Get("X-Request-Id")
+
+	d, err := e.st.GetDeployment(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.CommitSHA != "3f9c2e1a7b4d5c6e8f9012345678901234abcdef" || d.Branch != "main" || d.PusherLogin != "octo-dev" ||
+		d.CommitMessage != "Update page" || d.DeliveryID != "d-1" || d.TraceID != trace || d.Status != store.StatusQueued {
+		t.Fatalf("deployment = %+v (trace %s)", d, trace)
+	}
+	if n := e.count(t, "SELECT count(*) FROM jobs WHERE status = 'queued' AND trace_id = $1", trace); n != 1 {
+		t.Fatalf("queued jobs with trace = %d", n)
+	}
+	if n := e.count(t, `SELECT count(*) FROM webhook_deliveries WHERE delivery_id = 'd-1' AND result = 'ok'
+		AND detail = 'deployment 1 queued' AND trace_id = $1 AND installation_id = 55501234`, trace); n != 1 {
+		t.Fatal("delivery not recorded")
+	}
+	if n := e.count(t, "SELECT count(*) FROM audit_events WHERE action = 'deployment.created' AND trace_id = $1", trace); n != 1 {
+		t.Fatal("audit event missing")
+	}
+	for _, want := range []string{`"msg":"deployment queued"`, `"deploy_id":1`, `"request_id":"` + trace} {
+		if !strings.Contains(e.logs.String(), want) {
+			t.Errorf("logs missing %s", want)
+		}
 	}
 }
 
-func TestPushTokenFailureIsLogged(t *testing.T) {
-	h, logs, secret := setup(t, http.StatusUnauthorized)
-	body, _ := os.ReadFile("../../internal/github/testdata/push.json")
-	post(h, "push", body, secret)
-	waitFor(t, logs, `"msg":"installation token failed"`)
-}
-
-func TestDeletedBranchIsSkipped(t *testing.T) {
-	h, logs, secret := setup(t, http.StatusCreated)
-	body, _ := os.ReadFile("../../internal/github/testdata/push_delete.json")
-	post(h, "push", body, secret)
-	waitFor(t, logs, `"reason":"branch deleted"`)
-	time.Sleep(100 * time.Millisecond)
-	if strings.Contains(logs.String(), "repo access") {
-		t.Fatal("deleted branch should not trigger a repo check")
+func TestRedeliveredPushBuildsOnce(t *testing.T) {
+	e := setup(t)
+	body := fixture(t, "push.json")
+	e.post("push", "d-1", body)
+	if rec := e.post("push", "d-1", body); rec.Code != http.StatusAccepted {
+		t.Fatalf("redelivery status = %d", rec.Code)
+	}
+	if n := e.count(t, "SELECT count(*) FROM deployments"); n != 1 {
+		t.Fatalf("deployments = %d, want 1", n)
+	}
+	if n := e.count(t, "SELECT count(*) FROM webhook_deliveries WHERE attempts = 2 AND result = 'ignored'"); n != 1 {
+		t.Fatal("redelivery not counted as ignored")
 	}
 }
 
-func TestInstallationIsLogged(t *testing.T) {
-	h, logs, secret := setup(t, http.StatusCreated)
-	body, _ := os.ReadFile("../../internal/github/testdata/installation.json")
-	post(h, "installation", body, secret)
-	waitFor(t, logs, `"repos":["octo-dev/foyr-hello"]`)
+func TestPushesThatDoNotDeploy(t *testing.T) {
+	push := string(fixture(t, "push.json"))
+	tests := []struct {
+		name, body, reason string
+	}{
+		{"deleted branch", string(fixture(t, "push_delete.json")), "branch deleted"},
+		{"tag", strings.Replace(push, "refs/heads/main", "refs/tags/v1.0.0", 1), "not a branch"},
+		{"other branch", strings.Replace(push, "refs/heads/main", "refs/heads/feature", 1), "not the default branch"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := setup(t)
+			if rec := e.post("push", "d-x", []byte(tt.body)); rec.Code != http.StatusAccepted {
+				t.Fatalf("status = %d", rec.Code)
+			}
+			if n := e.count(t, "SELECT count(*) FROM deployments"); n != 0 {
+				t.Fatalf("deployments = %d, want 0", n)
+			}
+			if n := e.count(t, "SELECT count(*) FROM webhook_deliveries WHERE result = 'ignored' AND detail = $1", tt.reason); n != 1 {
+				t.Fatalf("delivery with reason %q not recorded", tt.reason)
+			}
+		})
+	}
+}
+
+func TestInstallationStoresApps(t *testing.T) {
+	e := setup(t)
+	if rec := e.post("installation", "d-2", fixture(t, "installation.json")); rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if n := e.count(t, `SELECT count(*) FROM apps WHERE full_name = 'octo-dev/foyr-hello' AND installation_id = 55501234
+		AND removed_at IS NULL`); n != 1 {
+		t.Fatal("app not stored")
+	}
+	if n := e.count(t, `SELECT count(*) FROM audit_events WHERE action IN ('installation.created', 'app.connected')
+		AND actor_login = 'octo-dev'`); n != 2 {
+		t.Fatalf("audit events = %d, want 2", n)
+	}
+}
+
+func TestDatabaseDownAnswers500(t *testing.T) {
+	e := setup(t)
+	e.st.Pool.Close()
+	if rec := e.post("push", "d-1", fixture(t, "push.json")); rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 so GitHub can redeliver", rec.Code)
+	}
+	for _, want := range []string{`"msg":"webhook failed"`, `"msg":"record delivery failed"`} {
+		if !strings.Contains(e.logs.String(), want) {
+			t.Errorf("logs missing %s", want)
+		}
+	}
+}
+
+func TestMaintainOnce(t *testing.T) {
+	e := setup(t)
+	maintainOnce(ctx, e.st, obs.NewLogger(e.logs))
+	if n := e.count(t, "SELECT count(*) FROM pg_inherits WHERE inhparent = 'audit_events'::regclass"); n != partitionsAhead+2 {
+		t.Fatalf("audit partitions = %d, want %d (default + %d months)", n, partitionsAhead+2, partitionsAhead+1)
+	}
+	if !strings.Contains(e.logs.String(), `"msg":"maintenance done"`) {
+		t.Fatal("maintenance did not finish")
+	}
 }
 
 func TestRoutes(t *testing.T) {
-	h, _, _ := setup(t, http.StatusCreated)
+	e := setup(t)
 	for _, tt := range []struct {
 		method, path string
 		want         int
@@ -131,10 +206,18 @@ func TestRoutes(t *testing.T) {
 		{http.MethodGet, "/nope", http.StatusNotFound},
 	} {
 		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, httptest.NewRequest(tt.method, tt.path, nil))
+		e.h.ServeHTTP(rec, httptest.NewRequest(tt.method, tt.path, nil))
 		if rec.Code != tt.want {
 			body, _ := io.ReadAll(rec.Body)
 			t.Errorf("%s %s = %d, want %d (%s)", tt.method, tt.path, rec.Code, tt.want, body)
+		}
+	}
+}
+
+func TestOwner(t *testing.T) {
+	for in, want := range map[string]string{"octo-dev/foyr-hello": "octo-dev", "solo": "solo", "": ""} {
+		if got := owner(in); got != want {
+			t.Errorf("owner(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

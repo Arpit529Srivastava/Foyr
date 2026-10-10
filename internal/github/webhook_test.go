@@ -3,6 +3,7 @@ package github
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,15 +22,24 @@ func load(t *testing.T, name string) []byte {
 }
 
 type calls struct {
-	push    []PushEvent
-	install []InstallationEvent
+	push       []PushEvent
+	install    []InstallationEvent
+	deliveries []Delivery
+	err        error
 }
 
 func newHandler(c *calls) *Handler {
 	return &Handler{
-		Secret:    testSecret,
-		OnPush:    func(_ context.Context, _ string, e PushEvent) { c.push = append(c.push, e) },
-		OnInstall: func(_ context.Context, _ string, e InstallationEvent) { c.install = append(c.install, e) },
+		Secret: testSecret,
+		OnPush: func(_ context.Context, _ string, e PushEvent) (Outcome, error) {
+			c.push = append(c.push, e)
+			return Outcome{Result: "ok", Detail: "queued"}, c.err
+		},
+		OnInstall: func(_ context.Context, _ string, e InstallationEvent) (Outcome, error) {
+			c.install = append(c.install, e)
+			return Outcome{Result: "ok"}, c.err
+		},
+		Record: func(_ context.Context, d Delivery) { c.deliveries = append(c.deliveries, d) },
 	}
 }
 
@@ -97,7 +107,8 @@ func TestPushEventFields(t *testing.T) {
 	send(newHandler(&c), http.MethodPost, "push", body, Sign(testSecret, body))
 	e := c.push[0]
 	if e.Branch() != "main" || e.After != "3f9c2e1a7b4d5c6e8f9012345678901234abcdef" ||
-		e.Repository.FullName != "octo-dev/foyr-hello" || e.Installation.ID != 55501234 || !e.Repository.Private || e.Deleted {
+		e.Repository.FullName != "octo-dev/foyr-hello" || e.Installation.ID != 55501234 || !e.Repository.Private || e.Deleted ||
+		e.Sender.Login != "octo-dev" || e.Sender.ID != 1 || e.HeadCommit == nil || e.HeadCommit.Message != "Update page" {
 		t.Fatalf("unexpected push event: %+v", e)
 	}
 }
@@ -123,7 +134,59 @@ func TestInstallationEventFields(t *testing.T) {
 	send(newHandler(&c), http.MethodPost, "installation", body, Sign(testSecret, body))
 	e := c.install[0]
 	if e.Action != "created" || e.Installation.ID != 55501234 || e.Installation.Account.Login != "octo-dev" ||
-		len(e.Repositories) != 1 || e.Repositories[0].FullName != "octo-dev/foyr-hello" {
+		len(e.Repositories) != 1 || e.Repositories[0].FullName != "octo-dev/foyr-hello" || !e.Repositories[0].Private ||
+		e.Sender.Login != "octo-dev" {
 		t.Fatalf("unexpected installation event: %+v", e)
+	}
+}
+
+func TestWebhookRecordsDeliveries(t *testing.T) {
+	push, ping := load(t, "push.json"), load(t, "ping.json")
+	broken := []byte(`{"ref":`)
+	tests := []struct {
+		name, event string
+		body        []byte
+		err         error
+		wantStatus  int
+		want        Delivery
+	}{
+		{"push ok", "push", push, nil, http.StatusAccepted,
+			Delivery{Event: "push", InstallationID: 55501234, Repo: "octo-dev/foyr-hello", Result: "ok", Detail: "queued"}},
+		{"callback error answers 500", "push", push, errors.New("database down"), http.StatusInternalServerError,
+			Delivery{Event: "push", InstallationID: 55501234, Repo: "octo-dev/foyr-hello", Result: "error", Detail: "database down"}},
+		{"ping", "ping", ping, nil, http.StatusAccepted, Delivery{Event: "ping", Result: "ok", Detail: "ping"}},
+		{"unknown event", "star", ping, nil, http.StatusAccepted,
+			Delivery{Event: "star", Result: "ignored", Detail: "event not handled"}},
+		{"broken json", "push", broken, nil, http.StatusBadRequest,
+			Delivery{Event: "push", Result: "error", Detail: "invalid payload"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := calls{err: tt.err}
+			rec := send(newHandler(&c), http.MethodPost, tt.event, tt.body, Sign(testSecret, tt.body))
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+			if len(c.deliveries) != 1 {
+				t.Fatalf("recorded %d deliveries, want 1", len(c.deliveries))
+			}
+			got := c.deliveries[0]
+			if got.ID != "72d3162e-cc78-11e3-81ab-4c9367dc0958" || got.Duration <= 0 {
+				t.Fatalf("delivery id/duration = %q %v", got.ID, got.Duration)
+			}
+			got.ID, got.Duration = "", 0
+			if got != tt.want {
+				t.Fatalf("delivery = %+v\nwant %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestForgedWebhookIsNotRecorded(t *testing.T) {
+	var c calls
+	push := load(t, "push.json")
+	send(newHandler(&c), http.MethodPost, "push", push, Sign([]byte("wrong-secret-wrong-secret"), push))
+	if len(c.deliveries) != 0 {
+		t.Fatal("unverified request was recorded")
 	}
 }

@@ -35,6 +35,7 @@ func TestLoad(t *testing.T) {
 			"FOYR_GITHUB_APP_ID":           "123456",
 			"FOYR_GITHUB_WEBHOOK_SECRET":   "a-long-random-webhook-secret",
 			"FOYR_GITHUB_PRIVATE_KEY_PATH": keyPath,
+			"FOYR_DATABASE_URL":            "postgres://foyr@localhost:5432/foyr_dev?sslmode=disable",
 		}
 	}
 
@@ -59,8 +60,10 @@ func TestLoad(t *testing.T) {
 			delete(e, "FOYR_GITHUB_PRIVATE_KEY_PATH")
 			e["FOYR_GITHUB_PRIVATE_KEY"] = "not a key"
 		}, wantErr: []string{"not a PEM private key"}},
+		{name: "missing database url", edit: func(e env) { delete(e, "FOYR_DATABASE_URL") }, wantErr: []string{"FOYR_DATABASE_URL is not set"}},
+		{name: "database url not postgres", edit: func(e env) { e["FOYR_DATABASE_URL"] = "mysql://x" }, wantErr: []string{"must start with postgres://"}},
 		{name: "everything missing is reported together", edit: func(e env) { clear(e) }, wantErr: []string{
-			"FOYR_GITHUB_APP_ID is not set", "FOYR_GITHUB_WEBHOOK_SECRET is not set", "FOYR_GITHUB_PRIVATE_KEY_PATH",
+			"FOYR_GITHUB_APP_ID is not set", "FOYR_GITHUB_WEBHOOK_SECRET is not set", "FOYR_GITHUB_PRIVATE_KEY_PATH", "FOYR_DATABASE_URL is not set",
 		}},
 	}
 	for _, tt := range tests {

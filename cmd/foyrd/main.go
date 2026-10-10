@@ -13,8 +13,13 @@ import (
 	"time"
 
 	"github.com/Arpit529Srivastava/Foyr/internal/config"
+	"github.com/Arpit529Srivastava/Foyr/internal/db"
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
+	"github.com/Arpit529Srivastava/Foyr/internal/store"
 )
+
+// maintenanceEvery is how often partitions and retention cleanup run.
+const maintenanceEvery = 24 * time.Hour
 
 func main() {
 	if err := run(); err != nil {
@@ -32,17 +37,30 @@ func run() error {
 		return err
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	pool, err := db.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	applied, err := db.Migrate(ctx, pool)
+	if err != nil {
+		return err
+	}
+	log.Info("database ready", "migrations_applied", applied)
+	st := store.New(pool)
+	go maintain(ctx, st, log, maintenanceEvery)
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           newServer(cfg, log),
+		Handler:           newServer(cfg, log, st),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	errc := make(chan error, 1)
 	go func() {
