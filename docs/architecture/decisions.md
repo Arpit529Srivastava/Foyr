@@ -355,3 +355,18 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** The domain costs cash the founder doesn't have this month, while AWS credits cover everything else. ADR-015's risks (cookie tossing, same-site CSRF, a phishing app getting `foyr.online` blocked) all come from untrusted code; with only the founder's code running, they don't apply. `mikeai.in` was considered and rejected: it is a live product with its own users, and sharing a site would put its sign-ins and reputation at risk.
 
 **Consequences:** `APPS_DOMAIN` stays a setting, never hardcoded, so switching is a config change plus a DNS zone and a free wildcard certificate. App URLs change at the switch, which is harmless before outside users. Tracked in docs/domain-switch.md.
+
+## ADR-029: Running deployments (step 7)
+**Date:** 2026-10-10 · **Status:** Accepted · **Builds on:** ADR-020, ADR-027
+
+**Decision:**
+- A finished build queues a `deploy` job in the same transaction. The deploy job registers a task definition (family `app-<app id>`, one essential container `app`, x86_64, 0.25 vCPU / 512 MB, the tenant execution role, **no task role**) and creates one ECS service per deployment, `d-<deployment id>`. The service runs one task on **Fargate Spot** (`FOYR_APPS_CAPACITY`), in the tenant subnets with no public IP, and registers as `d-<id>.apps.foyr.internal` in Cloud Map for authproxy (step 8). Both calls are idempotent by name, and the service name is saved so a restarted job resumes instead of starting a second service.
+- **Health check:** ECS's container health check runs inside the task, so no load balancer is needed. It passes when `/api/health` or `/` answers 2xx on `PORT` (3000), using whichever of wget, curl or node the image has (all Node and Alpine images). Images without any of them need a later network check from authproxy (step 8).
+- Statuses: `built → deploying → live`, or `failed`. The previous live deployment becomes `superseded` and is retired (service and Cloud Map name deleted) by a `retire` job **5 minutes** later, so in-flight requests finish. If an older deployment becomes healthy after a newer one is live, it is superseded at once: the newest commit always wins. `apps.live_deployment_id` points at the live one.
+- Failures are recorded, not retried: a task that stops (crash, out of memory, image pull error) fails the deploy at **Start** or **Health check** with the reason, the exit code and the last 30 lines of the app's log. A task that isn't healthy within 6 minutes fails with "timed out". The failed service is deleted and the previous live version keeps serving. Platform errors (ECS throttling) are retried like builds.
+- App output goes to one log group, `/foyr/apps` (14 days), one stream per task (`app-<id>/app/<task>`). Each step links to its stream.
+- New tenant security group `foyr-tenant`: outbound only, no inbound until authproxy exists.
+
+**Why:** The shortest safe path to a running app: no load balancer per app (quotas, cost), crashes explained in the developer's terms, and blue/green that never takes a working version down.
+
+**Consequences:** One small Spot task per live app (a few dollars a month each, from credits). foyrd needs the runtime settings from `tofu output`; `scripts/infra-env.sh` writes them. In AWS (step 4b) foyrd's task role adds ECS register, create, describe and delete, Cloud Map create, get, list and delete, and `iam:PassRole` on the tenant execution role only.

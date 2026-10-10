@@ -128,7 +128,10 @@ To stop Postgres and save battery: `brew services stop postgresql@17`.
 Deployments also store `build_id` (the CodeBuild run, used to resume after a crash), `image_uri` and
 `log_url` (migration `002_builds`). How builds work: docs/dev/builds.md.
 
-Deployment statuses: `queued → building → built` or `failed`, and `canceled`. Anything else is
+Deployment statuses: `queued → building → built → deploying → live`, then `superseded` when a newer one
+goes live; `failed` or `canceled` at any step. `apps.live_deployment_id` points at the live one, and
+`task_definition`, `ecs_service`, `live_at`, `retired_at` record how it ran (migration `003_runs`,
+docs/dev/deploys.md). Anything else is
 refused (`ErrBadTransition`). Step 6b and later add release statuses.
 
 ## Looking at the data
@@ -185,6 +188,7 @@ SELECT id, status, attempts, run_after, locked_by, lease_until, last_error FROM 
 | `internal/store/maintenance.go` | `RecordDelivery`, `EnsureAuditPartitions`, `Prune` |
 | `internal/store/store.go` | the audit helper and `ListAudit` |
 | `cmd/foyrd/server.go` | webhook → store |
+| `internal/store/runs.go` | `SetRun`, `MarkLive`, `MarkRetired` |
 | `internal/store/builds.go` | `GetApp`, `SetBuild`, `SyncSteps`, `Steps`, `ReleaseJob` |
 | `cmd/foyrd/maintenance.go` | daily partitions and cleanup |
 

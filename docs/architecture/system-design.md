@@ -97,11 +97,11 @@ job worker (fair: max 2 running per customer, leased + heartbeat, retried on pla
               → push ECR apps/<app>:d<id>-<sha12>
    worker polls every 10 s: phases → steps (Prepare, Clone, Build image, Push image) with times
    logs ─► CloudWatch; failure reason = failed step + last 30 log lines + link
-foyrd ─► register ECS task definition (image, env from SSM, cpu/mem)
+foyrd ─► register ECS task definition (image, env from SSM, cpu/mem) (ADR-029)
       ─► create ECS service "green" for this deployment (Cloud Map name d-<id>.apps.foyr.internal)
-      ─► wait for health check (GET /health or / → 2xx within timeout)
+      ─► wait for the container health check (/api/health or / → 2xx within 6 min)
    healthy?  yes ─► flip proxy config: app → green; drain blue after 5 min; status=live
-             no  ─► delete green; blue keeps serving; status=failed (+ logs)
+             no  ─► delete green; blue keeps serving; status=failed (+ reason, exit code, last log lines)
 ```
 
 **Blue/green lives in the proxy**, not in ALB target groups. foyrd changes which
