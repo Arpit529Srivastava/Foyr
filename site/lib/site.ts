@@ -1,6 +1,5 @@
 // Never hardcode domains (ADR-015): everything reads from env with sane defaults.
-// Temporary default until foyr.online is bought (ADR-021, docs/domain-switch.md).
-export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://foyrai.vercel.app";
+export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://foyr.online";
 
 /** Only the real domain is indexed; temporary hosts (e.g. *.vercel.app) and previews are hidden from search. */
 export const isIndexable = new URL(siteUrl).hostname === "foyr.online";
