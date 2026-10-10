@@ -149,3 +149,57 @@ func TestFailedDeployKeepsReason(t *testing.T) {
 		t.Fatal("a failed deployment must not become live")
 	}
 }
+
+func TestAppsGetUniqueSlugs(t *testing.T) {
+	s := newStore(t)
+	mk := func(installation, repo int64, name string) store.App {
+		t.Helper()
+		n := push(installation, repo, sha(int(repo)))
+		n.Repo.FullName = name
+		d, _, err := s.CreateDeployment(ctx, n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a, _ := s.GetApp(ctx, d.AppID)
+		return a
+	}
+	first := mk(1, 10, "octo-dev/foyr-hello")
+	second := mk(2, 20, "someone-else/Foyr_Hello") // same name, other owner
+	reserved := mk(1, 30, "octo-dev/admin")
+	if first.Slug != "foyr-hello" || second.Slug != "foyr-hello-2" || reserved.Slug != "admin-app" {
+		t.Fatalf("slugs = %q, %q, %q", first.Slug, second.Slug, reserved.Slug)
+	}
+	// Reconnecting keeps the slug.
+	if err := s.SyncInstallation(ctx, store.InstallationChange{Action: "added", InstallationID: 1,
+		Added: []store.Repo{{ID: 10, FullName: "octo-dev/foyr-hello"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := s.GetApp(ctx, first.ID); a.Slug != "foyr-hello" {
+		t.Fatalf("slug after reconnect = %q", a.Slug)
+	}
+}
+
+func TestRoutesListOnlyLiveApps(t *testing.T) {
+	s := newStore(t)
+	live := deploying(t, s, 1)
+	_ = s.SetRun(ctx, live.ID, "arn:td", "d-1")
+	if _, err := s.MarkLive(ctx, live.ID, store.System); err != nil {
+		t.Fatal(err)
+	}
+	other, _, _ := s.CreateDeployment(ctx, push(2, 20, sha(50))) // queued, never live
+
+	routes, err := s.Routes(ctx)
+	if err != nil || len(routes) != 1 {
+		t.Fatalf("routes = %+v err=%v", routes, err)
+	}
+	if r := routes[0]; r.Slug != "repo-10" || r.Service != "d-1" || r.DeploymentID != live.ID || r.AppID != live.AppID {
+		t.Fatalf("route = %+v", r)
+	}
+	_ = other
+
+	// Uninstalling hides the app.
+	_ = s.SyncInstallation(ctx, store.InstallationChange{Action: "deleted", InstallationID: 1})
+	if routes, _ := s.Routes(ctx); len(routes) != 0 {
+		t.Fatalf("removed app still routed: %+v", routes)
+	}
+}

@@ -6,6 +6,8 @@ import (
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/Arpit529Srivastava/Foyr/internal/slug"
 )
 
 // Repo is a GitHub repository as webhooks describe it.
@@ -124,5 +126,18 @@ func upsertApp(ctx context.Context, q querier, installationID int64, r Repo) (id
 			private = EXCLUDED.private,
 			removed_at = NULL, updated_at = now()
 		RETURNING id, xmax = 0`, installationID, r.ID, r.FullName, r.DefaultBranch, r.Private).Scan(&id, &created)
-	return id, created, err
+	if err != nil {
+		return id, created, err
+	}
+	return id, created, assignSlug(ctx, q, id, r.FullName)
+}
+
+// assignSlug gives an app without a slug the first free candidate, or app-<id> if all are taken.
+func assignSlug(ctx context.Context, q querier, appID int64, fullName string) error {
+	candidates := append(slug.Candidates(fullName), "app-"+strconv.FormatInt(appID, 10))
+	_, err := q.Exec(ctx, `UPDATE apps SET slug = (
+			SELECT c FROM unnest($2::text[]) WITH ORDINALITY AS t(c, n)
+			WHERE NOT EXISTS (SELECT 1 FROM apps WHERE slug = c) ORDER BY n LIMIT 1)
+		WHERE id = $1 AND slug IS NULL`, appID, candidates)
+	return err
 }
