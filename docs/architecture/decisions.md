@@ -269,3 +269,8 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** The domain isn't owned yet, so `foyr.online` links would be dead, and Resend can only deliver to the account owner without a verified domain.
 
 **Consequences:** These are deliberate exceptions to "never hardcode domains". Every one is listed in `docs/domain-switch.md`, which must be worked through when the domain is bought, and this ADR is then superseded.
+
+## ADR-022: foyr.online is live; site URL default switched back
+**Date:** 2026-10-10 · **Status:** Accepted · **Supersedes:** ADR-021 (site URL part)
+
+**Decision:** `foyr.online` was bought on 2026-10-10 (GoDaddy). The `siteUrl` default in `site/lib/site.ts` is `https://foyr.online` again and `NEXT_PUBLIC_SITE_URL` is set to it in Vercel; `foyrai.vercel.app` redirects to it. Still temporary under ADR-021 until their own steps are done: the hardcoded `FOUNDER_EMAIL` (until a `@foyr.online` mailbox exists) and the welcome email (until `mail.foyr.online` is verified in Resend). `docs/domain-switch.md` tracks what is left.
