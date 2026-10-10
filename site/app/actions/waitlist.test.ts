@@ -72,6 +72,7 @@ describe("joinWaitlist emails", () => {
     const sent = emails(calls);
     expect(sent.map((c) => c.body.to).sort()).toEqual(["founder@foyr.test", "sam@acme.com"]);
     expect(sent.every((c) => c.body.from === "Foyr <hello@mail.foyr.online>")).toBe(true);
+    expect(sent.find((c) => c.body.to === "sam@acme.com")?.body.reply_to).toBe("founder@foyr.test");
   });
 
   it("sends nothing for someone already on the list", async () => {
