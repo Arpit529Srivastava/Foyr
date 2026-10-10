@@ -2,7 +2,9 @@ package db_test
 
 import (
 	"context"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -18,8 +20,13 @@ func TestMigrateAppliesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(applied, []string{"001_init", "002_builds"}) {
-		t.Fatalf("applied = %v, want 001_init then 002_builds", applied)
+	files, _ := filepath.Glob("migrations/*.sql")
+	var want []string
+	for _, f := range files {
+		want = append(want, strings.TrimSuffix(filepath.Base(f), ".sql"))
+	}
+	if len(want) < 3 || !slices.Equal(applied, want) {
+		t.Fatalf("applied = %v, want every migration in order: %v", applied, want)
 	}
 	again, err := db.Migrate(ctx, pool)
 	if err != nil {
