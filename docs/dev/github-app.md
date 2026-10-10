@@ -27,9 +27,10 @@ Postgres must be running (docs/dev/database.md), then:
 scripts/foyrd-dev.sh
 ```
 It starts foyrd on `:8080` and the smee relay, applies database migrations and logs `database ready`.
-Push to the test repo's default branch and watch for `deployment queued` (with `deploy_id`) in the JSON
-logs. The deployment, its job, its audit event and the webhook delivery are now in `foyr_dev`
-(queries in docs/dev/database.md). Builds start in step 6b.
+Push to the test repo's default branch and watch for `deployment queued`, then `build started`,
+`build succeeded` (or `build failed`) in the JSON logs. Workers need AWS: run `aws sso login --profile foyr`
+first (the script uses `AWS_PROFILE=foyr`), or set `FOYR_WORKERS=0` to only record pushes.
+Queries in docs/dev/database.md; how builds work in docs/dev/builds.md.
 
 ## Settings foyrd reads
 | Variable | Required | Notes |
@@ -38,5 +39,8 @@ logs. The deployment, its job, its audit event and the webhook delivery are now 
 | `FOYR_GITHUB_WEBHOOK_SECRET` | yes | at least 16 characters |
 | `FOYR_GITHUB_PRIVATE_KEY_PATH` or `FOYR_GITHUB_PRIVATE_KEY` | yes | file path locally, PEM text in AWS |
 | `FOYR_DATABASE_URL` | yes | the dev script defaults to local `foyr_dev` |
+| `FOYR_WORKERS` | no | build workers, default 2; `0` turns building off |
+| `FOYR_AWS_REGION` | no | default `ap-south-1` |
+| `FOYR_CODEBUILD_PROJECT` | no | default `foyr-build` |
 | `FOYR_ADDR` | no | default `:8080` |
 | `FOYR_GITHUB_API_URL` | no | default `https://api.github.com` |
