@@ -1,0 +1,45 @@
+version: 0.2
+
+# Rendered by codebuild.tf. foyrd passes REPO_URL, COMMIT, IMAGE_URI and GITHUB_TOKEN (from SSM) per build (ADR-027).
+env:
+  shell: bash
+
+phases:
+  pre_build:
+    on-failure: ABORT
+    commands:
+      - aws ecr get-login-password | docker login --username AWS --password-stdin "$${IMAGE_URI%%/*}"
+      # The token goes in a header, never the URL, so it is not saved in .git/config or printed.
+      - |
+        (
+          set -euo pipefail
+          git init -q "$CODEBUILD_SRC_DIR/src"
+          cd "$CODEBUILD_SRC_DIR/src"
+          AUTH=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)
+          git -c http.extraHeader="Authorization: basic $AUTH" fetch -q --depth 1 "$REPO_URL" "$COMMIT"
+          git checkout -q FETCH_HEAD
+          echo "Checked out $(git rev-parse --short HEAD) from $REPO_URL"
+        )
+  build:
+    on-failure: ABORT
+    commands:
+      - |
+        (
+          set -euo pipefail
+          cd "$CODEBUILD_SRC_DIR/src"
+          if [ -f Dockerfile ]; then
+            echo "Using the repository's Dockerfile"
+          elif [ -f package.json ] && grep -q '"next"' package.json; then
+            echo "No Dockerfile: Next.js detected, using Foyr's Next.js template"
+            echo "${nextjs_dockerfile}" | base64 -d > Dockerfile
+            [ -f .dockerignore ] || echo "${nextjs_dockerignore}" | base64 -d > .dockerignore
+          else
+            echo "No Dockerfile found, and this is not a Next.js app."
+            echo "Add a Dockerfile to the repository root; any language works."
+            exit 1
+          fi
+        )
+      - docker build --platform linux/amd64 -t "$IMAGE_URI" "$CODEBUILD_SRC_DIR/src"
+  post_build:
+    commands:
+      - if [ "$CODEBUILD_BUILD_SUCCEEDING" = 1 ]; then docker push "$IMAGE_URI"; fi
