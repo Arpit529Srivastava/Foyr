@@ -62,6 +62,8 @@ func TestLoad(t *testing.T) {
 		}, wantErr: []string{"not a PEM private key"}},
 		{name: "missing database url", edit: func(e env) { delete(e, "FOYR_DATABASE_URL") }, wantErr: []string{"FOYR_DATABASE_URL is not set"}},
 		{name: "database url not postgres", edit: func(e env) { e["FOYR_DATABASE_URL"] = "mysql://x" }, wantErr: []string{"must start with postgres://"}},
+		{name: "bad workers", edit: func(e env) { e["FOYR_WORKERS"] = "lots" }, wantErr: []string{"FOYR_WORKERS"}},
+		{name: "negative workers", edit: func(e env) { e["FOYR_WORKERS"] = "-1" }, wantErr: []string{"FOYR_WORKERS"}},
 		{name: "everything missing is reported together", edit: func(e env) { clear(e) }, wantErr: []string{
 			"FOYR_GITHUB_APP_ID is not set", "FOYR_GITHUB_WEBHOOK_SECRET is not set", "FOYR_GITHUB_PRIVATE_KEY_PATH", "FOYR_DATABASE_URL is not set",
 		}},
@@ -75,7 +77,8 @@ func TestLoad(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
-				if c.GitHubAppID != 123456 || c.GitHubPrivateKey == nil || c.Addr != ":8080" || c.GitHubAPIURL != "https://api.github.com" {
+				if c.GitHubAppID != 123456 || c.GitHubPrivateKey == nil || c.Addr != ":8080" || c.GitHubAPIURL != "https://api.github.com" ||
+					c.Workers != 2 || c.AWSRegion != "ap-south-1" || c.CodeBuildProject != "foyr-build" {
 					t.Fatalf("unexpected config: %+v", c)
 				}
 				return
@@ -97,5 +100,19 @@ func TestErrorsNeverContainKeyMaterial(t *testing.T) {
 	_, err := Load(env{"FOYR_GITHUB_PRIVATE_KEY": secret}.get)
 	if err == nil || strings.Contains(err.Error(), "TOPSECRET") {
 		t.Fatalf("error leaked key material or was nil: %v", err)
+	}
+}
+
+func TestWorkersCanBeTurnedOff(t *testing.T) {
+	e := env{
+		"FOYR_GITHUB_APP_ID":         "1",
+		"FOYR_GITHUB_WEBHOOK_SECRET": "a-long-random-webhook-secret",
+		"FOYR_GITHUB_PRIVATE_KEY":    string(testKeyPEM(t)),
+		"FOYR_DATABASE_URL":          "postgres://x",
+		"FOYR_WORKERS":               "0",
+	}
+	c, err := Load(e.get)
+	if err != nil || c.Workers != 0 {
+		t.Fatalf("workers = %v err=%v", c, err)
 	}
 }

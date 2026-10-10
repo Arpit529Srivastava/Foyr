@@ -9,13 +9,21 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+
+	"github.com/Arpit529Srivastava/Foyr/internal/awsx"
+	"github.com/Arpit529Srivastava/Foyr/internal/build"
 	"github.com/Arpit529Srivastava/Foyr/internal/config"
 	"github.com/Arpit529Srivastava/Foyr/internal/db"
+	"github.com/Arpit529Srivastava/Foyr/internal/github"
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
 	"github.com/Arpit529Srivastava/Foyr/internal/store"
+	"github.com/Arpit529Srivastava/Foyr/internal/worker"
 )
 
 // maintenanceEvery is how often partitions and retention cleanup run.
@@ -53,6 +61,19 @@ func run() error {
 	st := store.New(pool)
 	go maintain(ctx, st, log, maintenanceEvery)
 
+	var workers sync.WaitGroup
+	if cfg.Workers > 0 {
+		p, err := newPool(ctx, cfg, st, log)
+		if err != nil {
+			return err
+		}
+		workers.Add(1)
+		go func() { defer workers.Done(); p.Run(ctx) }()
+		log.Info("build workers started", "workers", cfg.Workers, "codebuild_project", cfg.CodeBuildProject)
+	}
+	// Stop workers and wait for them to hand back jobs before the database closes.
+	defer func() { stop(); workers.Wait() }()
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           newServer(cfg, log, st),
@@ -80,4 +101,33 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// newPool connects to AWS, checks the credentials work and returns the build worker pool.
+func newPool(ctx context.Context, cfg *config.Config, st *store.Store, log *slog.Logger) (*worker.Pool, error) {
+	ac, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(cfg.AWSRegion))
+	if err != nil {
+		return nil, fmt.Errorf("aws config: %w", err)
+	}
+	id, err := sts.NewFromConfig(ac).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return nil, fmt.Errorf("aws credentials do not work (locally: aws sso login --profile foyr; or set FOYR_WORKERS=0): %w", err)
+	}
+	log.Info("aws ready", "account", *id.Account, "region", cfg.AWSRegion)
+
+	host, _ := os.Hostname()
+	return &worker.Pool{
+		Queue: st,
+		Runner: &build.Runner{
+			Store:    st,
+			Builds:   awsx.NewBuilds(ac, cfg.CodeBuildProject),
+			Registry: awsx.NewRegistry(ac),
+			Secrets:  awsx.NewSecrets(ac),
+			Logs:     awsx.NewLogs(ac),
+			Tokens:   &github.App{ID: cfg.GitHubAppID, Key: cfg.GitHubPrivateKey, BaseURL: cfg.GitHubAPIURL},
+		},
+		Log:     log,
+		Name:    fmt.Sprintf("%s-%d", host, os.Getpid()),
+		Workers: cfg.Workers,
+	}, nil
 }
