@@ -12,9 +12,9 @@ Things that were temporary until `foyr.online` was bought (ADR-021). The domain 
 
 ## Email (Resend)
 - [x] Verify the sending subdomain `mail.foyr.online` in Resend (SPF, DKIM, DMARC records at GoDaddy) (ADR-001).
-- [ ] Set `WAITLIST_FROM_EMAIL` in Vercel, e.g. `Foyr <hello@mail.foyr.online>`. This switches on the welcome email to people who join.
+- [x] Set `WAITLIST_FROM_EMAIL` in Vercel, e.g. `Foyr <hello@mail.foyr.online>`. This switches on the welcome email to people who join.
 - [ ] Replace the hardcoded `FOUNDER_EMAIL` in `site/app/actions/waitlist.ts` with `WAITLIST_NOTIFY_EMAIL` only (or a `@foyr.online` address), and update its test. Needs a mailbox or forwarding for `@foyr.online` first. The same address is the reply-to of the welcome email.
-- [ ] Send a test sign-up and check both emails land in the inbox, not spam. Regenerate the screenshots in `docs/website/emails/`.
+- [x] Send a test sign-up and check both emails land in the inbox, not spam. Regenerate the screenshots in `docs/website/emails/`.
 
 ## Later, separate purchase
 - [ ] `foyrapps.online` for customer apps (Phase 0, before public launch), plus the Public Suffix List entry (ADR-015).

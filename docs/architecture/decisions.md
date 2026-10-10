@@ -287,3 +287,44 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** Keeps step 5 small and testable, keeps test traffic away from the production App, and adds no dependencies.
 
 **Consequences:** smee.io sees webhook payloads (repo names, commit metadata, never code or secrets); signatures are still verified, so it cannot forge events. Acceptable for test repos only. The App private key lives outside the repo locally and in SSM `/foyr/platform/` in AWS.
+
+## ADR-024: Deployments are fully visible to the developer
+**Date:** 2026-10-10 · **Status:** Accepted
+
+**Decision:** Every deployment records enough for a developer to debug it without asking us, shown later in the dashboard like a CI run (GitHub Actions style): status, who pushed, commit and message, each step (clone, detect, build, push image, and later release) with start, end and duration, a timeline of status changes, the failed step and the reason, and a link to the full build log in CloudWatch. The data is recorded from the first build (step 6); the dashboard pages come in Phase 1.
+
+**Why:** Developers trust a platform they can see into. "It failed" with no reason means a support ticket; "step `docker build` failed: missing script build" means they fix it themselves.
+
+**Consequences:** Tables `deployments`, `deployment_steps`, `deployment_events`. Build logs stay in CloudWatch (large, streamed); Postgres keeps only pointers and short reasons.
+
+## ADR-025: Step 6 building blocks
+**Date:** 2026-10-10 · **Status:** Accepted · **Amends:** system design §5, §10
+
+**Decision:**
+- Platform data in **Postgres 17** via **pgx v5** (no ORM). Local Homebrew Postgres in development, RDS when step 4b lands.
+- Migrations are plain SQL files embedded in the foyrd binary (`internal/db/migrations`), applied at startup under an advisory lock and recorded in `schema_migrations`. They live under `internal/db` (not top-level `db/`) because Go can only embed files inside the package directory.
+- The job queue is a Postgres table using `FOR UPDATE SKIP LOCKED` with leases, retries with backoff and a max of 3 attempts. Platform errors (AWS throttling) are retried; customer build failures are not.
+- Push webhooks for the repo's default branch create a deployment; other branches and tags are recorded as ignored. A callback error answers 500 so GitHub can redeliver; the commit's unique index makes redelivery safe.
+- Step 6a: database, store, queue, webhook → deployment. Step 6b: worker, CodeBuild, ECR, SSM adapters and the build itself.
+- Tests run against a real Postgres (each test in its own schema). CI has a Postgres service; locally, tests skip without `FOYR_TEST_DATABASE_URL`.
+
+**Why:** One database we already need, no extra queue service, simple SQL we can read, and tests that exercise real locking.
+
+**Consequences:** Go CI needs a Postgres service. Revisit the queue (move to SQS behind the same worker interface) only at thousands of jobs per minute.
+
+## ADR-026: Audit trail, traceability and scale
+**Date:** 2026-10-10 · **Status:** Accepted
+
+**Decision:**
+- Three kinds of records: the **deployment trail** (ADR-024), an **audit log** of who did what (`audit_events`), and later **access logs** of requests through authproxy (CloudWatch then S3, never Postgres).
+- `audit_events` is **append-only** (a trigger rejects UPDATE, DELETE and TRUNCATE) and **partitioned by month**. foyrd creates the next months' partitions at startup and daily; a default partition catches anything else.
+- Every state change writes its audit event **in the same transaction**, so the trail can never miss an action. Actor is a GitHub user, a Foyr user (later) or the system.
+- A **trace ID** (the webhook request ID) is stored on the deployment, its job, its audit events and the delivery row, and is in every log line.
+- Every verified webhook is stored in `webhook_deliveries` (result, detail, duration, attempts) for 30 days. Unverified requests are never stored.
+- Every tenant-owned row carries the **tenant key** (`installation_id`, later `team_id`), and indexes start with it. Lists use cursor pagination.
+- **Fairness:** at most 2 running jobs per installation (`DefaultMaxRunningPerTenant`), enforced per tenant with an advisory lock so concurrent workers cannot exceed it.
+- **Retention:** deployments and audit events kept; finished jobs pruned after 7 days; deliveries after 30 days. Later, per-plan audit retention (dropping old partitions), customer-chosen access-log detail (off, basic, with user identity) because it holds their end users' personal data (DPDP Act, GDPR), and export (CSV/JSON, then streaming to the customer's own tools on paid plans).
+
+**Why:** Teams with many users need to answer "who did what, when, and why did it break" themselves. Retrofitting audit, tracing, tenant keys and partitions later means downtime; adding them now costs little.
+
+**Consequences:** Postgres holds small, important facts; anything large or high-volume goes to services built for volume. Scaling path in system design §12.

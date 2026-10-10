@@ -89,8 +89,9 @@ Foyr uses a **GitHub App** (not a plain OAuth app):
 ### 4b. Deploy: `git push` → live
 
 ```
-push ─► GitHub webhook ─► foyrd: create Deployment(status=queued) + Job
-job worker ─► start CodeBuild(repo, commit, installation token)
+push ─► GitHub webhook ─► foyrd, one transaction: Deployment(status=queued) + timeline event
+                                 + build Job + audit event; webhook delivery recorded (ADR-025, ADR-026)
+job worker (fair: max 2 running per customer, leased, retried on platform errors) ─► start CodeBuild(repo, commit, installation token)
    CodeBuild: clone → detect (repo Dockerfile? else Next.js template) → docker build → push ECR:<app>:<sha>
    logs ─► CloudWatch ─► streamed to dashboard
 foyrd ─► register ECS task definition (image, env from SSM, cpu/mem)
@@ -178,6 +179,25 @@ which shows a "Waking up…" page, triggers a wake, and forwards once healthy (~
 
 ## 5. Data model (platform Postgres)
 
+Built in step 6a (`internal/db/migrations`, guide: docs/dev/database.md):
+
+```
+installations       id (GitHub installation), account_login, suspended_at, removed_at
+apps                id, installation_id, github_repo_id, full_name, default_branch, removed_at
+deployments         id, app_id, installation_id, commit_sha, branch, commit_message, commit_url,
+                    pusher_login, trigger, delivery_id, trace_id,
+                    status (queued|building|built|failed|canceled), failure_step, failure_reason, times
+deployment_steps    deployment_id, name, position, status, log_ref, started_at, finished_at
+deployment_events   deployment_id, from_status, to_status, message, occurred_at   -- the timeline
+jobs                id, kind, deployment_id, installation_id, trace_id, status, attempts, max_attempts,
+                    run_after, locked_by, lease_until, last_error
+webhook_deliveries  delivery_id, event, action, installation_id, result, detail, duration_ms, attempts
+audit_events        occurred_at, installation_id, app_id, actor_*, action, target_*, trace_id, details
+                    -- append-only, one partition per month
+```
+
+Planned for later phases:
+
 ```
 users          id, email, github_id?, name, created_at
 teams          id, name, plan
@@ -241,7 +261,8 @@ audit_log      id, actor_id, app_id, action, data jsonb, at
 | Build fails | Deployment marked failed with logs; previous version stays live |
 | New version fails health check | Green torn down automatically; blue keeps serving |
 | Tenant app crashes | ECS restarts it; proxy returns a Foyr-branded 502 with a "check logs" hint |
-| Jobs stuck | `locked_at` timeout → retry with backoff → failed after N attempts |
+| Jobs stuck | lease (`lease_until`) expires → another worker reclaims it → retry with backoff → failed after 3 attempts |
+| Webhook handling fails (e.g. database down) | foyrd answers 500, GitHub shows the failed delivery and can redeliver; the commit's unique index stops double builds |
 
 ## 9. Observability
 
@@ -249,19 +270,21 @@ audit_log      id, actor_id, app_id, action, data jsonb, at
 - **Metrics:** ECS CPU/memory from CloudWatch; **request counts per app from authproxy**
   (also the metering source for usage billing).
 - **Platform:** Sentry (foyrd, authproxy, web) and PostHog (dashboard).
+- **Audit and tracing (ADR-026):** append-only `audit_events` for every action; one trace ID per push
+  on the deployment, job, audit events, delivery row and every log line; `webhook_deliveries` for 30 days.
 
 ## 10. Repository layout
 
 ```
 foyr/
   cmd/foyrd/  cmd/authproxy/        # Go entrypoints (single go.mod)
-  internal/{auth,apps,deploy,build,proxy,jobs,aws,github,db,email}
+  internal/{auth,apps,deploy,build,proxy,jobs,aws,github,db,store,email}
+  internal/db/migrations/           # SQL, embedded into foyrd (ADR-025)
   web/                              # Next.js dashboard
   site/                             # marketing site + public docs (Vercel)
   sdk/js/                           # @foyr/auth
   templates/nextjs/Dockerfile       # build template
   infra/                            # OpenTofu
-  db/migrations/
   docs/                             # internal + public documentation source
 ```
 
@@ -279,3 +302,17 @@ Mumbai pricing is within ~5–10% of us-east-1.
 | CodeBuild, ECR, CloudWatch, Route53, SES | 10–20 |
 | Aurora (Phase 3+, can pause to 0) | 0–40 |
 | **Total** | **~$130–200** |
+
+## 12. Scalability
+
+Principle: **Postgres holds small, important facts; anything large or high-volume goes to services
+built for volume.** Big tables are indexed by (tenant, time) and partitioned from day one (ADR-026).
+
+| Part | How it grows | When we change it |
+|---|---|---|
+| foyrd (API, webhooks, workers) | Stateless: run more copies behind the ALB | Never needs a redesign, just more copies |
+| Job queue (Postgres `SKIP LOCKED`) | Thousands of jobs a minute; fairness cap per customer | Very high volume: SQS behind the same worker interface |
+| Builds (CodeBuild) | Every build is its own machine | Raise the concurrent-build quota |
+| Postgres | Tenant-first indexes, cursor pagination, monthly partitions, retention cleanup | Bigger instance → read replicas → shard by tenant key |
+| Logs (build, app, access) | CloudWatch and S3 | Never in Postgres |
+| Customer apps | Fargate tasks per app, more authproxy copies | Scale-to-zero (Phase 2) keeps idle apps cheap |

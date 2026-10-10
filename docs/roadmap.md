@@ -12,7 +12,8 @@
 ## Phase 0: Bare deploy pipeline (~3 weeks)
 - [ ] OpenTofu: VPC, subnets, fck-nat, ALB, ECS cluster, ECR, RDS, CodeBuild project (ap-south-1)
 - [ ] GitHub App: repo install, verified push webhooks, installation tokens (developer login moves to Phase 1, ADR-023)
-- [ ] Build: repo Dockerfile or Next.js template → CodeBuild → ECR
+- [x] Platform database, job queue, audit trail and delivery log; push → queued deployment (step 6a, ADR-025, ADR-026)
+- [ ] Build: repo Dockerfile or Next.js template → CodeBuild → ECR (step 6b)
 - [ ] Deploy: ECS service per deployment, Cloud Map discovery, health check
 - [ ] authproxy as a plain router with proxy-level blue/green and rollback
 - [ ] Buy `APPS_DOMAIN` (foyrapps.online); `<app>.foyrapps.online` wildcard routing + reserved slugs
@@ -24,7 +25,7 @@
 - [ ] authproxy: session check, header stripping, identity headers, signed assertion
 - [ ] Per-app invites
 - [ ] `@foyr/auth` SDK: `getUser()`
-- [ ] Basic dashboard: apps list, deploy, status, build logs
+- [ ] Basic dashboard: apps list, deploy, CI-style deployment view (steps, timeline, logs, ADR-024), audit log
 - **Done when:** a deployed app has working login with zero auth code written by the user.
 
 ## Phase 2: Permissions (~4 weeks)
