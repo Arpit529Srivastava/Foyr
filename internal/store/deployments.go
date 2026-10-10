@@ -206,6 +206,12 @@ func setStatus(ctx context.Context, tx pgx.Tx, id int64, c StatusChange) (cur, d
 			return cur, d, err
 		}
 	}
+	// A failed deploy may leave pieces AWS won't delete yet; the retire job retries until they're gone.
+	if c.To == StatusFailed && d.ECSService != "" {
+		if err := enqueue(ctx, tx, JobRetire, d, time.Minute); err != nil {
+			return cur, d, err
+		}
+	}
 	details := map[string]any{"from": cur.Status, "to": c.To}
 	if c.Step != "" {
 		details["step"] = c.Step

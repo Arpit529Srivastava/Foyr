@@ -274,7 +274,12 @@ func stoppedReason(t Task) string {
 	if t.ExitCode != nil {
 		s += fmt.Sprintf(" (exit code %d)", *t.ExitCode)
 	}
-	return s + "."
+	s += "."
+	if strings.Contains(strings.ToLower(t.StoppedReason), "health check") {
+		s += fmt.Sprintf(" ECS stopped it because its health check kept failing. Foyr checks %s on port %d "+
+			"(the PORT variable) and needs a 2xx answer.", strings.Join(HealthPaths, ", then "), AppPort)
+	}
+	return s
 }
 
 func firstWith(tasks []Task, ok func(Task) bool) *Task {
@@ -326,16 +331,17 @@ func (r *Retirer) GiveUp(ctx context.Context, job store.Job, cause error) {
 	obs.Logger(ctx).Error("retire gave up; service may still be running", "deploy_id", job.DeploymentID, "err", cause)
 }
 
-// HealthCheckCommand is the container health check: healthy when any HealthPaths answers 2xx,
+// HealthCheckCommand is the container health check: healthy when any HealthPaths answers 2xx on
+// 127.0.0.1 or on the task's own address ($HOSTNAME, which Fargate sets and Next.js binds to),
 // using whichever of wget, curl or node the image has.
 func HealthCheckCommand() string {
 	var b strings.Builder
-	b.WriteString(`p="${PORT:-` + strconv.Itoa(AppPort) + `}"; for u in`)
+	b.WriteString(`p="${PORT:-` + strconv.Itoa(AppPort) + `}"; for h in 127.0.0.1 "${HOSTNAME:-localhost}"; do for u in`)
 	for _, path := range HealthPaths {
 		b.WriteString(" " + path)
 	}
-	b.WriteString(`; do ( wget -q -O /dev/null "http://127.0.0.1:$p$u" || curl -fsS -o /dev/null "http://127.0.0.1:$p$u" || ` +
-		`node -e "fetch('http://127.0.0.1:'+process.argv[1]).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" "$p$u" ) ` +
-		`>/dev/null 2>&1 && exit 0; done; exit 1`)
+	b.WriteString(`; do ( wget -q -O /dev/null "http://$h:$p$u" || curl -fsS -o /dev/null "http://$h:$p$u" || ` +
+		`node -e "fetch('http://'+process.argv[1]).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" "$h:$p$u" ) ` +
+		`>/dev/null 2>&1 && exit 0; done; done; exit 1`)
 	return b.String()
 }
