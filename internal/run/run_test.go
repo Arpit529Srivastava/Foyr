@@ -196,6 +196,27 @@ func TestCrashFailsAtHealthCheckAndKeepsPreviousLive(t *testing.T) {
 	}
 }
 
+func TestUnhealthyKillExplainsHealthCheck(t *testing.T) {
+	code := int32(143)
+	killed := []Task{{ID: "t1", Status: "STOPPED", StoppedReason: "Task failed container health checks", ExitCode: &code}}
+	rg := newRig(t, running, killed)
+	d := rg.run(t, rg.built(t, 1))
+	if !strings.Contains(d.FailureReason, "/api/health, then /") || !strings.Contains(d.FailureReason, "port 3000") {
+		t.Fatalf("reason should say what the health check needs: %s", d.FailureReason)
+	}
+}
+
+func TestFailedDeployQueuesCleanup(t *testing.T) {
+	rg := newRig(t, running, crashed)
+	d := rg.run(t, rg.built(t, 1))
+	var n int
+	_ = rg.st.Pool.QueryRow(context.Background(),
+		"SELECT count(*) FROM jobs WHERE kind = 'retire' AND deployment_id = $1", d.ID).Scan(&n)
+	if n != 1 {
+		t.Fatalf("retire jobs = %d, want 1 so leftovers (e.g. the Cloud Map name) are retried", n)
+	}
+}
+
 func TestImageThatNeverStartsFailsAtStart(t *testing.T) {
 	rg := newRig(t, provisioning, pullFailed)
 	d := rg.run(t, rg.built(t, 1))
@@ -350,10 +371,34 @@ func TestHealthCheckCommand(t *testing.T) {
 	})
 }
 
+// TestHealthCheckReachesAppBoundToTaskAddress covers Fargate setting HOSTNAME to the task's own
+// name, so Next.js listens on that address and not on 127.0.0.1.
+func TestHealthCheckReachesAppBoundToTaskAddress(t *testing.T) {
+	if _, err := exec.LookPath("curl"); err != nil {
+		t.Skip("curl not installed")
+	}
+	l, err := net.Listen("tcp6", "[::1]:0") // reachable as "localhost", not as 127.0.0.1
+	if err != nil {
+		t.Skip("no IPv6 loopback")
+	}
+	srv := &http.Server{Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})}
+	go func() { _ = srv.Serve(l) }()
+	defer srv.Close()
+	_, port, _ := net.SplitHostPort(l.Addr().String())
+	if !healthCheckPassesWith(t, port, "localhost") {
+		t.Fatal("health check must also try the task's own address ($HOSTNAME)")
+	}
+}
+
 func healthCheckPasses(t *testing.T, port string) bool {
 	t.Helper()
+	return healthCheckPassesWith(t, port, "")
+}
+
+func healthCheckPassesWith(t *testing.T, port, hostname string) bool {
+	t.Helper()
 	cmd := exec.Command("sh", "-c", HealthCheckCommand())
-	cmd.Env = []string{"PORT=" + port, "PATH=/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"}
+	cmd.Env = []string{"PORT=" + port, "HOSTNAME=" + hostname, "PATH=/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"}
 	err := cmd.Run()
 	var exit *exec.ExitError
 	if err != nil && !errors.As(err, &exit) {
