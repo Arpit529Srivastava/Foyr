@@ -2,13 +2,17 @@
 
 Hosting platform: deploy existing apps with built-in auth, invites and roles.
 
+**Current goal: YC application, deadline Nov 2, 2026, 8pm PT (submit Nov 1).** Plan and cut list: docs/yc-plan.md.
+Prioritise the demo (`git push` → live URL → magic-link login → invite) and real users over everything else.
+
 Read before making architectural changes:
 - docs/architecture/system-design.md: how the system works
 - docs/architecture/decisions.md: ADRs. Add a new ADR instead of silently changing a decision
 
 Conventions:
 - Never hardcode domains: `PLATFORM_DOMAIN` = foyr.online (site, app., api., auth.),
-  `APPS_DOMAIN` = foyrapps.online (customer apps). They are different domains on purpose (ADR-015).
+  `APPS_DOMAIN` = customer apps, a different domain on purpose (ADR-015). **For now `APPS_DOMAIN` = apps.foyr.online,
+  founder's apps only (ADR-028); switch to a separate domain before the first outside user.**
   foyr.online is live (ADR-022). A few values are still temporary (ADR-021); every one is listed in
   docs/domain-switch.md. Add to that list when you add another.
 - AWS region is ap-south-1.

@@ -17,4 +17,5 @@ Things that were temporary until `foyr.online` was bought (ADR-021). The domain 
 - [x] Send a test sign-up and check both emails land in the inbox, not spam. Regenerate the screenshots in `docs/website/emails/`.
 
 ## Later, separate purchase
-- [ ] `foyrapps.online` for customer apps (Phase 0, before public launch), plus the Public Suffix List entry (ADR-015).
+- [ ] Separate apps domain (`foyrapps.online` or cheaper, e.g. `.com`), plus the Public Suffix List entry (ADR-015). **Deadline: before the first outside user deploys an app** (planned Oct 24 to 30, docs/yc-plan.md).
+- [ ] Until then `APPS_DOMAIN` = `apps.foyr.online`, founder's apps only (ADR-028). At the switch: buy the domain, add its DNS zone and wildcard certificate (`tofu apply`), change `APPS_DOMAIN`, redeploy, update the docs pages that mention `foyrapps.online`.
