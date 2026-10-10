@@ -164,7 +164,9 @@ func TestLostLeaseCancelsJob(t *testing.T) {
 	}}
 	p := pool(st, r, logs)
 	p.Workers = 1
-	runUntil(t, p, func() bool { return strings.Contains(logs.String(), `"msg":"job lease lost; another worker owns it now"`) })
+	runUntil(t, p, func() bool {
+		return strings.Contains(logs.String(), `"msg":"job lease lost; another worker owns it now"`)
+	})
 	if s, _ := jobState(t, st); s != "running" {
 		t.Fatalf("status = %s; the thief still owns it", s)
 	}
