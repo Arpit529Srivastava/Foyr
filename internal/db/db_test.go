@@ -18,8 +18,8 @@ func TestMigrateAppliesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(applied, "001_init") {
-		t.Fatalf("applied = %v, want 001_init", applied)
+	if !slices.Equal(applied, []string{"001_init", "002_builds"}) {
+		t.Fatalf("applied = %v, want 001_init then 002_builds", applied)
 	}
 	again, err := db.Migrate(ctx, pool)
 	if err != nil {
@@ -58,8 +58,12 @@ func TestMigrateConcurrentCopiesApplyOnce(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if total != 1 {
-		t.Fatalf("migrations applied %d times across copies, want 1", total)
+	var want int
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM schema_migrations").Scan(&want); err != nil {
+		t.Fatal(err)
+	}
+	if total != want || want < 2 {
+		t.Fatalf("copies applied %d migrations in total, want each of the %d exactly once", total, want)
 	}
 }
 

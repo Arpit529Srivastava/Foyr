@@ -58,6 +58,9 @@ type Deployment struct {
 	Status         string
 	FailureStep    string
 	FailureReason  string
+	BuildID        string
+	ImageURI       string
+	LogURL         string
 	CreatedAt      time.Time
 	StartedAt      *time.Time
 	FinishedAt     *time.Time
@@ -65,13 +68,13 @@ type Deployment struct {
 
 const deploymentCols = `id, app_id, installation_id, commit_sha, branch, commit_message, commit_url, pusher_login,
 	trigger, delivery_id, trace_id, status, coalesce(failure_step, ''), coalesce(failure_reason, ''),
-	created_at, started_at, finished_at`
+	build_id, image_uri, log_url, created_at, started_at, finished_at`
 
 func scanDeployment(r pgx.Row) (Deployment, error) {
 	var d Deployment
 	err := r.Scan(&d.ID, &d.AppID, &d.InstallationID, &d.CommitSHA, &d.Branch, &d.CommitMessage, &d.CommitURL,
 		&d.PusherLogin, &d.Trigger, &d.DeliveryID, &d.TraceID, &d.Status, &d.FailureStep, &d.FailureReason,
-		&d.CreatedAt, &d.StartedAt, &d.FinishedAt)
+		&d.BuildID, &d.ImageURI, &d.LogURL, &d.CreatedAt, &d.StartedAt, &d.FinishedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return d, ErrNotFound
 	}
@@ -146,6 +149,7 @@ type StatusChange struct {
 	Message string
 	Step    string // failed step, for StatusFailed
 	Reason  string // failure reason, for StatusFailed
+	Image   string // image URI, for StatusBuilt
 }
 
 // SetDeploymentStatus applies c, records the timeline event and the audit event in one transaction.
@@ -162,8 +166,9 @@ func (s *Store) SetDeploymentStatus(ctx context.Context, id int64, c StatusChang
 		d, err = scanDeployment(tx.QueryRow(ctx, `UPDATE deployments SET status = $2,
 				started_at = CASE WHEN $2 = 'building' THEN now() ELSE started_at END,
 				finished_at = CASE WHEN $2 IN ('built', 'failed', 'canceled') THEN now() ELSE finished_at END,
-				failure_step = nullif($3, ''), failure_reason = nullif($4, '')
-			WHERE id = $1 RETURNING `+deploymentCols, id, c.To, clip(c.Step, 100), clip(c.Reason, 2000)))
+				failure_step = nullif($3, ''), failure_reason = nullif($4, ''),
+				image_uri = CASE WHEN $5 = '' THEN image_uri ELSE $5 END
+			WHERE id = $1 RETURNING `+deploymentCols, id, c.To, clip(c.Step, 100), clip(c.Reason, 2000), c.Image))
 		if err != nil {
 			return err
 		}
@@ -177,6 +182,9 @@ func (s *Store) SetDeploymentStatus(ctx context.Context, id int64, c StatusChang
 		}
 		if c.Reason != "" {
 			details["reason"] = clip(c.Reason, 500)
+		}
+		if c.Image != "" {
+			details["image"] = c.Image
 		}
 		return audit(ctx, tx, AuditEvent{InstallationID: cur.InstallationID, AppID: cur.AppID, Actor: c.Actor,
 			Action: "deployment." + c.To, TargetType: "deployment", TargetID: strconv.FormatInt(id, 10),
