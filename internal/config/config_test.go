@@ -36,6 +36,10 @@ func TestLoad(t *testing.T) {
 			"FOYR_GITHUB_WEBHOOK_SECRET":   "a-long-random-webhook-secret",
 			"FOYR_GITHUB_PRIVATE_KEY_PATH": keyPath,
 			"FOYR_DATABASE_URL":            "postgres://foyr@localhost:5432/foyr_dev?sslmode=disable",
+			"FOYR_TENANT_SUBNETS":          "subnet-a, subnet-b",
+			"FOYR_TENANT_SECURITY_GROUP":   "sg-1",
+			"FOYR_TENANT_EXEC_ROLE_ARN":    "arn:aws:iam::1:role/foyr-exec-tenant",
+			"FOYR_APPS_NAMESPACE_ID":       "ns-1",
 		}
 	}
 
@@ -64,6 +68,9 @@ func TestLoad(t *testing.T) {
 		{name: "database url not postgres", edit: func(e env) { e["FOYR_DATABASE_URL"] = "mysql://x" }, wantErr: []string{"must start with postgres://"}},
 		{name: "bad workers", edit: func(e env) { e["FOYR_WORKERS"] = "lots" }, wantErr: []string{"FOYR_WORKERS"}},
 		{name: "negative workers", edit: func(e env) { e["FOYR_WORKERS"] = "-1" }, wantErr: []string{"FOYR_WORKERS"}},
+		{name: "runtime settings needed with workers", edit: func(e env) { delete(e, "FOYR_TENANT_SECURITY_GROUP"); delete(e, "FOYR_APPS_NAMESPACE_ID") },
+			wantErr: []string{"FOYR_TENANT_SECURITY_GROUP is not set", "FOYR_APPS_NAMESPACE_ID is not set"}},
+		{name: "bad capacity", edit: func(e env) { e["FOYR_APPS_CAPACITY"] = "EC2" }, wantErr: []string{"FOYR_APPS_CAPACITY"}},
 		{name: "everything missing is reported together", edit: func(e env) { clear(e) }, wantErr: []string{
 			"FOYR_GITHUB_APP_ID is not set", "FOYR_GITHUB_WEBHOOK_SECRET is not set", "FOYR_GITHUB_PRIVATE_KEY_PATH", "FOYR_DATABASE_URL is not set",
 		}},
@@ -78,7 +85,9 @@ func TestLoad(t *testing.T) {
 					t.Fatalf("unexpected error: %v", err)
 				}
 				if c.GitHubAppID != 123456 || c.GitHubPrivateKey == nil || c.Addr != ":8080" || c.GitHubAPIURL != "https://api.github.com" ||
-					c.Workers != 2 || c.AWSRegion != "ap-south-1" || c.CodeBuildProject != "foyr-build" {
+					c.Workers != 2 || c.AWSRegion != "ap-south-1" || c.CodeBuildProject != "foyr-build" ||
+					len(c.TenantSubnets) != 2 || c.TenantSubnets[1] != "subnet-b" || c.ECSCluster != "foyr" ||
+					c.AppsLogGroup != "/foyr/apps" || c.AppsCapacity != "FARGATE_SPOT" {
 					t.Fatalf("unexpected config: %+v", c)
 				}
 				return

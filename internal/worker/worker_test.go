@@ -64,7 +64,7 @@ func setup(t *testing.T, jobs int) (*store.Store, *syncBuf) {
 }
 
 func pool(st *store.Store, r Runner, logs *syncBuf) *Pool {
-	return &Pool{Queue: st, Runner: r, Log: obs.NewLogger(logs), Name: "test", Workers: 2,
+	return &Pool{Queue: st, Runners: map[string]Runner{store.JobBuild: r}, Log: obs.NewLogger(logs), Name: "test", Workers: 2,
 		Lease: time.Second, Heartbeat: 100 * time.Millisecond, Idle: 10 * time.Millisecond}
 }
 
@@ -187,5 +187,32 @@ func TestBackoff(t *testing.T) {
 		if got := Backoff(attempt); got != want {
 			t.Errorf("Backoff(%d) = %v, want %v", attempt, got, want)
 		}
+	}
+}
+
+func TestJobsRouteByKind(t *testing.T) {
+	st, logs := setup(t, 1) // queues a build job
+	ctx := context.Background()
+	_, _ = st.SetDeploymentStatus(ctx, 1, store.StatusChange{To: store.StatusBuilding})
+	_, _ = st.SetDeploymentStatus(ctx, 1, store.StatusChange{To: store.StatusBuilt}) // queues a deploy job
+	var mu sync.Mutex
+	seen := map[string]int{}
+	runner := func(kind string) *fakeRunner {
+		return &fakeRunner{run: func(_ context.Context, j store.Job) error {
+			mu.Lock()
+			defer mu.Unlock()
+			if j.Kind == kind {
+				seen[kind]++
+			} else {
+				seen["wrong runner for "+j.Kind]++
+			}
+			return nil
+		}}
+	}
+	p := pool(st, nil, logs)
+	p.Runners = map[string]Runner{store.JobBuild: runner(store.JobBuild), store.JobDeploy: runner(store.JobDeploy)}
+	runUntil(t, p, func() bool { mu.Lock(); defer mu.Unlock(); return len(seen) >= 2 })
+	if seen[store.JobBuild] != 1 || seen[store.JobDeploy] != 1 || len(seen) != 2 {
+		t.Fatalf("seen = %v", seen)
 	}
 }

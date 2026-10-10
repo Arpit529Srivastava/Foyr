@@ -26,6 +26,15 @@ type Config struct {
 	AWSRegion           string
 	CodeBuildProject    string
 	Workers             int // build workers in this process; 0 turns building off
+
+	// Where apps run (ADR-029); required when Workers > 0. Values come from `tofu output`.
+	ECSCluster          string
+	TenantSubnets       []string
+	TenantSecurityGroup string
+	TenantExecRoleARN   string
+	AppsNamespaceID     string
+	AppsLogGroup        string
+	AppsCapacity        string // FARGATE or FARGATE_SPOT
 }
 
 // Load reads settings through getenv and reports every problem at once.
@@ -74,6 +83,33 @@ func Load(getenv func(string) string) (*Config, error) {
 		errs = append(errs, errors.New("FOYR_DATABASE_URL must start with postgres://"))
 	default:
 		c.DatabaseURL = v
+	}
+
+	c.ECSCluster = or(getenv("FOYR_ECS_CLUSTER"), "foyr")
+	c.AppsLogGroup = or(getenv("FOYR_APPS_LOG_GROUP"), "/foyr/apps")
+	c.AppsCapacity = or(getenv("FOYR_APPS_CAPACITY"), "FARGATE_SPOT")
+	if c.AppsCapacity != "FARGATE" && c.AppsCapacity != "FARGATE_SPOT" {
+		errs = append(errs, fmt.Errorf("FOYR_APPS_CAPACITY must be FARGATE or FARGATE_SPOT, got %q", c.AppsCapacity))
+	}
+	for _, s := range strings.Split(getenv("FOYR_TENANT_SUBNETS"), ",") {
+		if s = strings.TrimSpace(s); s != "" {
+			c.TenantSubnets = append(c.TenantSubnets, s)
+		}
+	}
+	c.TenantSecurityGroup = getenv("FOYR_TENANT_SECURITY_GROUP")
+	c.TenantExecRoleARN = getenv("FOYR_TENANT_EXEC_ROLE_ARN")
+	c.AppsNamespaceID = getenv("FOYR_APPS_NAMESPACE_ID")
+	if c.Workers > 0 {
+		for name, v := range map[string]bool{
+			"FOYR_TENANT_SUBNETS":        len(c.TenantSubnets) > 0,
+			"FOYR_TENANT_SECURITY_GROUP": c.TenantSecurityGroup != "",
+			"FOYR_TENANT_EXEC_ROLE_ARN":  c.TenantExecRoleARN != "",
+			"FOYR_APPS_NAMESPACE_ID":     c.AppsNamespaceID != "",
+		} {
+			if !v {
+				errs = append(errs, fmt.Errorf("%s is not set (needed to run apps; scripts/infra-env.sh writes it, or set FOYR_WORKERS=0)", name))
+			}
+		}
 	}
 
 	key, err := loadKey(getenv)

@@ -31,7 +31,7 @@ type Runner interface {
 // Pool runs Workers goroutines that share the queue.
 type Pool struct {
 	Queue        Queue
-	Runner       Runner
+	Runners      map[string]Runner // by job kind
 	Log          *slog.Logger
 	Name         string        // prefix for worker names, e.g. the host
 	Workers      int           // default 2
@@ -145,7 +145,9 @@ func (p *Pool) handle(ctx context.Context, log *slog.Logger, name string, job st
 			return
 		}
 		log.Error("job failed; giving up", "err", err, took)
-		p.Runner.GiveUp(done, job, err)
+		if r, ok := p.Runners[job.Kind]; ok {
+			r.GiveUp(done, job, err)
+		}
 	}
 }
 
@@ -153,10 +155,11 @@ var errUnknownKind = errors.New("unknown job kind")
 
 // run dispatches by kind.
 func (p *Pool) run(ctx context.Context, job store.Job) error {
-	if job.Kind != store.JobBuild {
+	r, ok := p.Runners[job.Kind]
+	if !ok {
 		return fmt.Errorf("%w %q", errUnknownKind, job.Kind)
 	}
-	return p.Runner.Run(ctx, job)
+	return r.Run(ctx, job)
 }
 
 // heartbeat extends the lease until ctx ends, and cancels the job if the lease is lost.
