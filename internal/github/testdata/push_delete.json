@@ -1,0 +1,7 @@
+{
+  "ref": "refs/heads/old-feature",
+  "after": "0000000000000000000000000000000000000000",
+  "deleted": true,
+  "repository": { "id": 812345678, "full_name": "octo-dev/foyr-hello", "clone_url": "https://github.com/octo-dev/foyr-hello.git", "default_branch": "main" },
+  "installation": { "id": 55501234 }
+}
