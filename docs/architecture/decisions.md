@@ -346,3 +346,12 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** The shortest path to a reliable, debuggable build: no extra services, the token never touches disk or logs, crashes don't lose or duplicate builds, and customers see exactly which step failed and why.
 
 **Consequences:** CodeBuild's role gains `ssm:GetParameters` on `/foyr/builds/*` only. The CodeBuild concurrent-build quota caps parallel builds account-wide; raise it when needed.
+
+## ADR-028: Customer apps on `apps.foyr.online` until the first outside user
+**Date:** 2026-10-10 · **Status:** Accepted (temporary) · **Amends:** ADR-015
+
+**Decision:** Until the separate apps domain is bought, `APPS_DOMAIN` = `apps.foyr.online`, so apps are served at `<app>.apps.foyr.online`. Only the founder's own apps run there. **Before the first outside person deploys an app**, buy a separate registrable domain (`foyrapps.online`, or a cheaper extension such as `.com`), switch `APPS_DOMAIN`, and add it to the Public Suffix List. Planned for Oct 24 to 30 (docs/yc-plan.md). Locally, apps use `<app>.localhost`.
+
+**Why:** The domain costs cash the founder doesn't have this month, while AWS credits cover everything else. ADR-015's risks (cookie tossing, same-site CSRF, a phishing app getting `foyr.online` blocked) all come from untrusted code; with only the founder's code running, they don't apply. `mikeai.in` was considered and rejected: it is a live product with its own users, and sharing a site would put its sign-ins and reputation at risk.
+
+**Consequences:** `APPS_DOMAIN` stays a setting, never hardcoded, so switching is a config change plus a DNS zone and a free wildcard certificate. App URLs change at the switch, which is harmless before outside users. Tracked in docs/domain-switch.md.

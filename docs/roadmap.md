@@ -1,5 +1,8 @@
 # Roadmap
 
+**Now racing for the YC deadline (Nov 2, 2026).** docs/yc-plan.md picks the items below that go into the
+demo and lists what waits until after applying.
+
 ## Now: Website & docs (Vercel)
 - [x] Marketing site built (`site/`): home, pricing, changelog, 404, privacy, terms
 - [x] Public docs section: 10 pages, search, light/dark
@@ -16,7 +19,7 @@
 - [x] Build: repo Dockerfile or Next.js template → CodeBuild → ECR (step 6b, ADR-027; first live builds 2026-10-10)
 - [ ] Deploy: ECS service per deployment, Cloud Map discovery, health check
 - [ ] authproxy as a plain router with proxy-level blue/green and rollback
-- [ ] Buy `APPS_DOMAIN` (foyrapps.online); `<app>.foyrapps.online` wildcard routing + reserved slugs
+- [ ] `<app>.apps.foyr.online` wildcard routing + reserved slugs for now (ADR-028); buy the separate apps domain before the first outside user
 - **Done when:** `git push` → live URL, working and repeatable.
 
 ## Phase 1: Auth-as-a-service (~4 weeks)
