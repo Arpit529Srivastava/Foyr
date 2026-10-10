@@ -1,0 +1,14 @@
+{
+  "action": "created",
+  "installation": {
+    "id": 55501234,
+    "account": { "login": "octo-dev", "id": 1, "type": "User" },
+    "repository_selection": "selected",
+    "permissions": { "contents": "read", "metadata": "read" },
+    "events": ["push"]
+  },
+  "repositories": [
+    { "id": 812345678, "name": "foyr-hello", "full_name": "octo-dev/foyr-hello", "private": true }
+  ],
+  "sender": { "login": "octo-dev", "id": 1 }
+}
