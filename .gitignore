@@ -9,3 +9,4 @@ node_modules/
 .gstack/
 tfplan
 infra/terraform.tfvars
+cmd/authproxy/authproxy
