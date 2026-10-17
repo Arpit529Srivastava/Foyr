@@ -384,3 +384,19 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** No per-app load balancer rules or target groups (quotas), instant blue/green by changing one pointer, and the front door keeps working when the control plane doesn't.
 
 **Consequences:** In AWS, authproxy's security group may reach foyrd on 9090 and tenant tasks on 3000; nothing else may. A new route takes up to 3 s to appear.
+
+## ADR-031: The public front door (step 8b)
+**Date:** 2026-10-18 · **Status:** Accepted · **Builds on:** ADR-008, ADR-015, ADR-028, ADR-030
+
+**Decision:**
+- **DNS:** `apps.foyr.online` is a Route 53 hosted zone, delegated from GoDaddy with 4 NS records. `foyr.online` itself stays at GoDaddy. One record, `*.apps.foyr.online`, points every app at the load balancer.
+- **TLS:** one ACM wildcard certificate, `*.apps.foyr.online`, validated by DNS in that zone and renewed by AWS.
+- **Load balancer:** one public ALB in the public subnets. 443 uses `ELBSecurityPolicy-TLS13-1-2-2021-06` and forwards everything to authproxy; 80 only answers 301 to HTTPS. It drops malformed headers. Health check: `/_foyr/healthz`.
+- **authproxy** runs as ECS service `authproxy` on Fargate ARM64 (256/512, on-demand, not Spot: it is the front door) in the platform subnets, no public IP, task family `foyr-authproxy`, logs in `/foyr/platform` (prefix `authproxy`). Deployment circuit breaker with rollback.
+- **Security groups:** internet → ALB 80/443; ALB → authproxy 8081 only; authproxy → tenant 3000 and HTTPS out (image pulls, logs). Tenant tasks accept only authproxy on 3000. The tenant NACL already lets replies back.
+- **Images:** GitHub Actions (`.github/workflows/authproxy-deploy.yml`) on pushes to `main` tests, cross-compiles `linux/arm64`, packages the binary on distroless `static-debian12:nonroot`, pushes `foyr/authproxy:<sha12>`, registers a new revision of the latest task definition with only the image changed, and waits for the service to be stable. It signs in with **OIDC**: role `foyr-github-deploy` trusts only `repo:Arpit529Srivastava/Foyr:ref:refs/heads/main`, can push only to `foyr/authproxy`, update only the `authproxy` service, and pass only the platform execution role. No AWS keys are stored in GitHub.
+- **Routes until 8c:** foyrd still runs on the laptop, so authproxy in AWS uses `FOYR_STATIC_ROUTES` (`authproxy_static_routes`, today `foyr-hello=d-4.apps.foyr.internal:3000`). A new deploy of foyr-hello needs this value changed until 8c switches authproxy to foyrd's `/internal/routes`.
+
+**Why:** The cheapest setup that gives every app a real HTTPS address today: one ALB (about $17/month, from credits) for all apps, a free certificate, $0.50/month DNS. Delegating only the `apps` subdomain lets AWS manage the records the load balancer and certificate need without moving the website's DNS.
+
+**Consequences:** tofu owns the settings of the first task definition; the pipeline owns which image runs (`ignore_changes = [task_definition]`). After changing authproxy settings in tofu, run the pipeline (`workflow_dispatch`) so a revision with the new settings and the current image is deployed. Moving to the separate apps domain (ADR-028) means a new zone and certificate, listed in docs/domain-switch.md.

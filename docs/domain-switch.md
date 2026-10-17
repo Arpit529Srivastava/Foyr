@@ -18,4 +18,5 @@ Things that were temporary until `foyr.online` was bought (ADR-021). The domain 
 
 ## Later, separate purchase
 - [ ] Separate apps domain (`foyrapps.online` or cheaper, e.g. `.com`), plus the Public Suffix List entry (ADR-015). **Deadline: before the first outside user deploys an app** (planned Oct 24 to 30, docs/yc-plan.md).
-- [ ] Until then `APPS_DOMAIN` = `apps.foyr.online`, founder's apps only (ADR-028). At the switch: buy the domain, add its DNS zone and wildcard certificate (`tofu apply`), change `APPS_DOMAIN`, redeploy, update the docs pages that mention `foyrapps.online`.
+- [ ] Until then `APPS_DOMAIN` = `apps.foyr.online`, founder's apps only (ADR-028). At the switch: buy the domain, add its DNS zone and wildcard certificate (`tofu apply`), change `APPS_DOMAIN` (`apps_domain` in `infra/variables.tf`, ADR-031), delegate its DNS to Route 53, redeploy, update the docs pages that mention `foyrapps.online`.
+- [ ] `authproxy_static_routes` in `infra/variables.tf` is a bridge until foyrd runs in AWS (step 8c, ADR-031). Remove it when authproxy reads foyrd's routes.
