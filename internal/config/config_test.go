@@ -73,6 +73,11 @@ func TestLoad(t *testing.T) {
 			wantErr: []string{"FOYR_TENANT_SECURITY_GROUP is not set", "FOYR_APPS_NAMESPACE_ID is not set"}},
 		{name: "missing internal token", edit: func(e env) { delete(e, "FOYR_INTERNAL_TOKEN") }, wantErr: []string{"FOYR_INTERNAL_TOKEN is not set"}},
 		{name: "short internal token", edit: func(e env) { e["FOYR_INTERNAL_TOKEN"] = "short" }, wantErr: []string{"at least 32"}},
+		{name: "founder key and apps domain", edit: func(e env) {
+			e["FOYR_FOUNDER_KEY"] = strings.Repeat("f", 32)
+			e["FOYR_APPS_DOMAIN"] = "Apps.Foyr.Online"
+		}},
+		{name: "short founder key", edit: func(e env) { e["FOYR_FOUNDER_KEY"] = "short" }, wantErr: []string{"FOYR_FOUNDER_KEY must be at least 32"}},
 		{name: "bad capacity", edit: func(e env) { e["FOYR_APPS_CAPACITY"] = "EC2" }, wantErr: []string{"FOYR_APPS_CAPACITY"}},
 		{name: "everything missing is reported together", edit: func(e env) { clear(e) }, wantErr: []string{
 			"FOYR_GITHUB_APP_ID is not set", "FOYR_GITHUB_WEBHOOK_SECRET is not set", "FOYR_GITHUB_PRIVATE_KEY_PATH", "FOYR_DATABASE_URL is not set",
@@ -127,5 +132,22 @@ func TestWorkersCanBeTurnedOff(t *testing.T) {
 	c, err := Load(e.get)
 	if err != nil || c.Workers != 0 {
 		t.Fatalf("workers = %v err=%v", c, err)
+	}
+}
+
+func TestFounderSettings(t *testing.T) {
+	e := env{
+		"FOYR_GITHUB_APP_ID":         "1",
+		"FOYR_GITHUB_WEBHOOK_SECRET": "a-long-random-webhook-secret",
+		"FOYR_GITHUB_PRIVATE_KEY":    string(testKeyPEM(t)),
+		"FOYR_DATABASE_URL":          "postgres://x",
+		"FOYR_INTERNAL_TOKEN":        "internal-token-internal-token-123456",
+		"FOYR_WORKERS":               "0",
+		"FOYR_FOUNDER_KEY":           strings.Repeat("f", 32),
+		"FOYR_APPS_DOMAIN":           "Apps.Foyr.Online.",
+	}
+	c, err := Load(e.get)
+	if err != nil || c.FounderKey != strings.Repeat("f", 32) || c.AppsDomain != "apps.foyr.online" {
+		t.Fatalf("config = %+v err=%v", c, err)
 	}
 }

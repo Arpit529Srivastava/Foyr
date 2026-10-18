@@ -4,8 +4,25 @@
     {
       "name": "site",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "site", "run", "dev", "--", "--port", "3100"],
+      "runtimeArgs": [
+        "--prefix",
+        "site",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3100"
+      ],
       "port": 3100
+    },
+    {
+      "name": "foyrd-founder",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "set -a; source ~/.config/foyr/foyrd-dev.env; set +a; FOYR_WORKERS=0 FOYR_ADDR=:8090 FOYR_INTERNAL_ADDR=:9091 FOYR_DATABASE_URL=postgres://$USER@localhost:5432/foyr_dev?sslmode=disable FOYR_APPS_DOMAIN=apps.foyr.online FOYR_FOUNDER_KEY=local-preview-key-not-a-secret-0001 exec go run ./cmd/foyrd"
+      ],
+      "port": 8090
     }
   ]
 }

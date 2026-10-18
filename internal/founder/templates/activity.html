@@ -1,0 +1,9 @@
+{{define "activity.html"}}{{template "head" .}}{{template "frame" .}}
+<div class="ph rise"><div><h1>Activity</h1><p>Every change Foyr recorded, newest first. Entries can't be edited or deleted.</p></div></div>
+<section class="card rise" style="animation-delay:80ms;padding:10px 12px"><div class="scroll"><table>
+<tr><th>When</th><th>What happened</th><th>On</th><th>By</th></tr>
+{{range .Events}}<tr><td class="n dim">{{clock .OccurredAt}}</td><td class="n">{{.Action}}</td>
+<td class="n">{{if eq .TargetType "deployment"}}<a href="/founder/deployments/{{.TargetID}}" style="color:var(--a)">deployment #{{.TargetID}}</a>{{else}}<span class="dim">{{.TargetType}} {{.TargetID}}</span>{{end}}</td>
+<td class="n dim">{{if .Actor.Login}}{{.Actor.Login}}{{else}}{{.Actor.Type}}{{end}}</td></tr>
+{{else}}<tr><td colspan="4" class="dim">Nothing recorded yet.</td></tr>{{end}}</table></div></section>
+{{template "endframe" .}}{{template "foot"}}{{end}}

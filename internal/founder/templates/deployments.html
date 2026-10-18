@@ -1,0 +1,12 @@
+{{define "deployments.html"}}{{template "head" .}}{{template "frame" .}}
+<div class="ph rise"><div><h1>{{with .App}}{{.Slug}}{{else}}Deployments{{end}}</h1>
+<p>{{with .App}}Every push to {{.FullName}}, newest first.{{else}}Every push to every app, newest first.{{end}}{{if .Refresh}} Updating live.{{end}}</p></div>
+{{with .App}}{{if and $.Domain .LiveDeployment}}<a class="chip c-live" href="https://{{.Slug}}.{{$.Domain}}" rel="noreferrer" style="padding:7px 14px 7px 12px">{{.Slug}}.{{$.Domain}}</a>{{end}}{{end}}</div>
+<section class="card rise" style="animation-delay:80ms;padding:10px 12px"><div class="scroll"><table>
+<tr><th>Deployment</th><th>Status</th><th>Commit</th><th>Push to live</th><th>Pushed</th></tr>
+{{range .Rows}}<tr><td class="n"><a href="/founder/deployments/{{.ID}}"><b style="font-weight:600">#{{.ID}}</b> <span class="dim">{{.Slug}}</span></a></td>
+<td class="n">{{template "status" .Status}}</td>
+<td style="min-width:240px"><a href="/founder/deployments/{{.ID}}">{{first .CommitMessage}}</a><br><span class="sha">{{short .CommitSHA}}</span>{{if .FailureReason}} <span class="c-failed" style="font-size:13px">{{.FailureStep}}: {{first .FailureReason}}</span>{{end}}</td>
+<td class="n">{{dur (between .CreatedAt .LiveAt)}}</td><td class="n dim">{{since $.Now .CreatedAt}}{{with .PusherLogin}}<br>by {{.}}{{end}}</td></tr>
+{{else}}<tr><td colspan="5" class="dim">No deployments yet. Push to a connected repository.</td></tr>{{end}}</table></div></section>
+{{template "endframe" .}}{{template "foot"}}{{end}}

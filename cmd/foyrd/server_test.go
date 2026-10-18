@@ -221,3 +221,19 @@ func TestOwner(t *testing.T) {
 		}
 	}
 }
+
+func TestFounderPageIsOffWithoutAKey(t *testing.T) {
+	e := setup(t)
+	rec := httptest.NewRecorder()
+	e.h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/founder", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("GET /founder without a key = %d, want 404", rec.Code)
+	}
+
+	cfg := &config.Config{GitHubWebhookSecret: e.secret, FounderKey: strings.Repeat("k", 32)}
+	rec = httptest.NewRecorder()
+	newServer(cfg, obs.NewLogger(e.logs), e.st).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/founder", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `action="/founder/login"`) {
+		t.Fatalf("GET /founder with a key = %d", rec.Code)
+	}
+}

@@ -315,8 +315,8 @@ run "control_plane" {
 
   assert {
     condition = alltrue([
-      for e in jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].environment : !strcontains(e.name, "SECRET") && !strcontains(e.name, "TOKEN") && !strcontains(e.name, "PRIVATE_KEY") && e.name != "FOYR_DATABASE_URL"
-    ]) && length(jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].secrets) == 4
+      for e in jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].environment : !strcontains(e.name, "SECRET") && !strcontains(e.name, "TOKEN") && !strcontains(e.name, "PRIVATE_KEY") && !strcontains(e.name, "FOUNDER_KEY") && e.name != "FOYR_DATABASE_URL"
+    ]) && length(jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].secrets) == 5
     error_message = "foyrd's secrets come from SSM, never plain environment values"
   }
 
