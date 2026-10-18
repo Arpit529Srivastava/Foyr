@@ -26,6 +26,7 @@ polished dashboard pages, audit log UI and export. The data for the audit log is
 - Apps deployed by outside users, deployments run, median push-to-live time
 - First live build: push to image in 1 min 22 s (deployment 2, 2026-10-10)
 - First live app: push to healthy running app in 2 min 10 s (deployment 4, 2026-10-10)
+- First public URL: https://foyr-hello.apps.foyr.online over HTTPS through the load balancer and authproxy (2026-10-18, ADR-031); about 80 ms from India
 
 ## Rules while racing
 - Same quality bar: tests, PRs, ADRs (ADR-018). Explanations get shorter, not the tests.
