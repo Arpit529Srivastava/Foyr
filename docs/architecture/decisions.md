@@ -416,3 +416,16 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** `git push` → live URL must work with the laptop off, and new deployments must reach the URL by themselves. One small database, one small task and the existing load balancer keep the cost at about $20/month from credits.
 
 **Consequences:** Once the App's webhook URL points at `api.foyr.online`, local foyrd receives no webhooks, but its workers could still pick up old jobs from the local database and create `d-<id>` services that clash with the ones foyrd in AWS owns. Run local foyrd with `FOYR_WORKERS=0`, or with a separate dev App. Changing foyrd or authproxy settings in tofu takes effect at the next pipeline run (run it by hand from the Actions tab).
+
+## ADR-033: Founder-only page
+**Date:** 2026-10-19 · **Status:** Accepted · **Builds on:** ADR-026, ADR-032 · **Replaced by:** the customer dashboard (Phase 1)
+
+**Decision:**
+- foyrd serves a read-only page at `https://api.foyr.online/founder`: apps with their live address and deployment, the last 30 deployments (status, commit, push-to-live time, failure reason), and per deployment its build steps with timings, timeline, failure reason with the app's last log lines, and audit trail. Server-rendered Go templates, no JavaScript; it refreshes every 5 s while a deployment younger than 30 minutes is still running.
+- **Access:** one shared key, `FOYR_FOUNDER_KEY` (64 hex characters, SSM `/foyr/platform/founder-key`, made by `scripts/platform-secrets.sh` into `~/.config/foyr/founder-key`). The page is off (404) without a key of 32+ characters. The key is pasted into a sign-in form (POST), never put in a URL, so it never reaches browser history or request logs. `scripts/founder-key.sh` copies it to the clipboard and opens the page.
+- **Session:** cookie `__Host-foyr_founder` (Secure, HttpOnly, SameSite=Strict, host-only, 30 days) holding an HMAC of a fixed label under the key, so the cookie never holds the key and a new key signs everyone out.
+- **Headers:** `Content-Security-Policy: default-src 'none'` (inline styles only), `no-store`, `no-referrer`, `noindex`, `nosniff`, no framing.
+
+**Why:** Watching deploys in a browser instead of CloudWatch, and real screenshots for the YC application, without building accounts before magic-link login exists.
+
+**Consequences:** Anyone with the key sees every app's deployments; it is for the founder only and goes away when the Phase 1 dashboard has real logins. Rotating the key: delete `~/.config/foyr/founder-key`, run `scripts/platform-secrets.sh`, then the Deploy platform workflow.

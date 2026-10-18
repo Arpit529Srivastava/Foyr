@@ -28,6 +28,14 @@ Decisions: ADR-031 (front door), ADR-032 (this guide).
 - Webhook deliveries and redeliveries: the App's Advanced tab on GitHub.
 - Don't run local foyrd with workers at the same time (ADR-032); use `FOYR_WORKERS=0` locally.
 
+## Founder page (ADR-033)
+`https://api.foyr.online/founder` shows apps, deployments, build steps, timings, failure reasons and the audit trail.
+```bash
+scripts/founder-key.sh
+```
+copies the key to your clipboard and opens the page; paste it into the box once (the login lasts 30 days).
+Locally: start the `foyrd-founder` preview (`.claude/launch.json`, port 8090, local test key in that file).
+
 ## Terms
 
 **RDS**: AWS runs Postgres for us: backups, patches, disk.
@@ -59,3 +67,4 @@ Decisions: ADR-031 (front door), ADR-032 (this guide).
 | `infra/github.tf` | the deploy role |
 | `cmd/foyrd/Dockerfile`, `.github/workflows/platform-deploy.yml` | images and deploys |
 | `scripts/platform-secrets.sh`, `scripts/db-import.sh` | one-time setup |
+| `internal/founder`, `scripts/founder-key.sh` | founder page and its key |
