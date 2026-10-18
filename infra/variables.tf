@@ -28,8 +28,20 @@ variable "authproxy_image_tag" {
   default     = "bootstrap"
 }
 
-variable "authproxy_static_routes" {
-  description = "slug=host:port routes until foyrd runs in AWS (step 8c, ADR-031); empty switches to foyrd's routes."
+variable "api_domain" {
+  description = "foyrd's public hostname (PLATFORM_DOMAIN api.), for GitHub webhooks."
   type        = string
-  default     = "foyr-hello=d-4.apps.foyr.internal:3000"
+  default     = "api.foyr.online"
+}
+
+variable "foyrd_image_tag" {
+  description = "Tag in foyr/foyrd for the first task definition; the image pipeline deploys later tags."
+  type        = string
+  default     = "bootstrap"
+}
+
+variable "github_app_id" {
+  description = "GitHub App foyrd acts as (foyr-dev for now, ADR-023); not secret."
+  type        = string
+  default     = "5261051"
 }

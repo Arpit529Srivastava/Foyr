@@ -69,7 +69,11 @@ resource "aws_ecs_task_definition" "authproxy" {
     environment = [
       { name = "FOYR_ADDR", value = ":${local.authproxy_port}" },
       { name = "FOYR_APPS_DOMAIN", value = var.apps_domain },
-      { name = "FOYR_STATIC_ROUTES", value = var.authproxy_static_routes },
+      { name = "FOYR_ROUTES_URL", value = "http://${aws_service_discovery_service.foyrd.name}.${aws_service_discovery_private_dns_namespace.platform.name}:${local.foyrd_internal_port}/internal/routes" },
+      { name = "FOYR_APPS_NAMESPACE", value = aws_service_discovery_private_dns_namespace.apps.name },
+    ]
+    secrets = [
+      { name = "FOYR_INTERNAL_TOKEN", valueFrom = "arn:aws:ssm:${var.region}:${local.account_id}:parameter/foyr/platform/${local.foyrd_secrets.FOYR_INTERNAL_TOKEN}" },
     ]
     logConfiguration = {
       logDriver = "awslogs"

@@ -58,3 +58,8 @@ output "apps_load_balancer_dns" {
 output "github_deploy_role_arn" {
   value = aws_iam_role.github_deploy.arn
 }
+
+output "api_name_servers" {
+  description = "Add these as NS records for api at GoDaddy (ADR-032)."
+  value       = aws_route53_zone.api.name_servers
+}
