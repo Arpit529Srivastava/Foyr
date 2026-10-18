@@ -88,8 +88,6 @@ resource "aws_service_discovery_service" "foyrd" {
       ttl  = 10
     }
   }
-
-  health_check_custom_config {}
 }
 
 # What foyrd's code may do in AWS: run builds and deployments, nothing else (ADR-032).
