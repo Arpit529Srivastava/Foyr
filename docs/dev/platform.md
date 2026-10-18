@@ -33,7 +33,7 @@ Decisions: ADR-031 (front door), ADR-032 (this guide).
 ```bash
 scripts/founder-key.sh
 ```
-copies the key to your clipboard and opens the page; paste it into the box once (the login lasts 30 days).
+copies the key to your clipboard and opens the page; paste it into the box (a login lasts 24 hours; 5 wrong keys lock your address out for 15 minutes).
 Locally: start the `foyrd-founder` preview (`.claude/launch.json`, port 8090, local test key in that file).
 
 ## Terms
