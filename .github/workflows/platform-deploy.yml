@@ -1,14 +1,14 @@
-name: Deploy authproxy
+name: Deploy platform
 
 on:
   push:
     branches: [main]
-    paths: ["cmd/authproxy/**", "internal/proxy/**", "internal/obs/**", "internal/slug/**", "go.mod", "go.sum", ".github/workflows/authproxy-deploy.yml"]
+    paths: ["cmd/**", "internal/**", "go.mod", "go.sum", ".github/workflows/platform-deploy.yml"]
   workflow_dispatch:
 
 # One deploy at a time; a newer push waits instead of cancelling a half-done one.
 concurrency:
-  group: deploy-authproxy
+  group: deploy-platform
   cancel-in-progress: false
 
 permissions:
@@ -19,23 +19,29 @@ env:
   AWS_REGION: ap-south-1
   ROLE_ARN: arn:aws:iam::899628690655:role/foyr-github-deploy
   CLUSTER: foyr
-  SERVICE: authproxy
-  FAMILY: foyr-authproxy
 
 jobs:
   deploy:
-    name: Build, push, deploy
+    name: Deploy ${{ matrix.service }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Tests ran in Go CI before the merge; main is protected (ADR-017).
+    # foyrd first: a new authproxy only turns healthy once foyrd answers its routes.
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        service: [foyrd, authproxy]
+    env:
+      SERVICE: ${{ matrix.service }}
+      FAMILY: foyr-${{ matrix.service }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Test
-        run: go test ./cmd/authproxy/... ./internal/proxy/... ./internal/slug/...
       - name: Build binary
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o cmd/authproxy/authproxy ./cmd/authproxy
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o "cmd/$SERVICE/$SERVICE" "./cmd/$SERVICE"
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.ROLE_ARN }}
@@ -46,8 +52,12 @@ jobs:
       - name: Push image
         id: image
         run: |
-          image="${{ steps.ecr.outputs.registry }}/foyr/authproxy:${GITHUB_SHA::12}"
-          docker buildx build --platform linux/arm64 --provenance=false --push -t "$image" cmd/authproxy
+          image="${{ steps.ecr.outputs.registry }}/foyr/$SERVICE:${GITHUB_SHA::12}"
+          if aws ecr describe-images --repository-name "foyr/$SERVICE" --image-ids imageTag="${GITHUB_SHA::12}" >/dev/null 2>&1; then
+            echo "image exists (re-run)"
+          else
+            docker buildx build --platform linux/arm64 --provenance=false --push -t "$image" "cmd/$SERVICE"
+          fi
           echo "uri=$image" >> "$GITHUB_OUTPUT"
       - name: Deploy
         env:

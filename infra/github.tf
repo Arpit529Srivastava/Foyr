@@ -49,8 +49,9 @@ data "aws_iam_policy_document" "github_deploy" {
       "ecr:CompleteLayerUpload",
       "ecr:PutImage",
       "ecr:BatchGetImage",
+      "ecr:DescribeImages",
     ]
-    resources = [aws_ecr_repository.platform["authproxy"].arn]
+    resources = [aws_ecr_repository.platform["authproxy"].arn, aws_ecr_repository.platform["foyrd"].arn]
   }
 
   # Task definitions can't be scoped by ARN for these two calls.
@@ -61,15 +62,17 @@ data "aws_iam_policy_document" "github_deploy" {
   }
 
   statement {
-    sid       = "DeployAuthproxy"
-    actions   = ["ecs:UpdateService", "ecs:DescribeServices"]
-    resources = ["arn:aws:ecs:${var.region}:${local.account_id}:service/${aws_ecs_cluster.main.name}/authproxy"]
+    sid     = "DeployPlatform"
+    actions = ["ecs:UpdateService", "ecs:DescribeServices"]
+    resources = [
+      for s in ["authproxy", "foyrd"] : "arn:aws:ecs:${var.region}:${local.account_id}:service/${aws_ecs_cluster.main.name}/${s}"
+    ]
   }
 
   statement {
-    sid       = "PassExecRole"
+    sid       = "PassPlatformRoles"
     actions   = ["iam:PassRole"]
-    resources = [aws_iam_role.exec["platform"].arn]
+    resources = [aws_iam_role.exec["platform"].arn, aws_iam_role.foyrd.arn]
 
     condition {
       test     = "StringEquals"

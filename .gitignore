@@ -10,3 +10,4 @@ node_modules/
 tfplan
 infra/terraform.tfvars
 cmd/authproxy/authproxy
+cmd/foyrd/foyrd

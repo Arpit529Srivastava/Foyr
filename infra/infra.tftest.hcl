@@ -88,6 +88,24 @@ mock_provider "aws" {
     }
   }
 
+  mock_resource "aws_lb_listener" {
+    defaults = {
+      arn = "arn:aws:elasticloadbalancing:ap-south-1:123456789012:listener/app/mock/1/1"
+    }
+  }
+
+  mock_resource "aws_service_discovery_service" {
+    defaults = {
+      arn = "arn:aws:servicediscovery:ap-south-1:123456789012:service/srv-mock"
+    }
+  }
+
+  mock_resource "aws_db_instance" {
+    defaults = {
+      address = "foyr.abc.ap-south-1.rds.amazonaws.com"
+    }
+  }
+
   mock_resource "aws_sns_topic" {
     defaults = {
       arn = "arn:aws:sns:ap-south-1:123456789012:mock"
@@ -249,8 +267,10 @@ run "front_door" {
   }
 
   assert {
-    condition     = !strcontains(aws_ecs_task_definition.authproxy.container_definitions, "FOYR_INTERNAL_TOKEN")
-    error_message = "secrets must never be plain task environment values"
+    condition = alltrue([
+      for e in jsondecode(aws_ecs_task_definition.authproxy.container_definitions)[0].environment : !contains(["FOYR_INTERNAL_TOKEN", "FOYR_STATIC_ROUTES"], e.name)
+    ]) && length([for x in jsondecode(aws_ecs_task_definition.authproxy.container_definitions)[0].secrets : x if x.name == "FOYR_INTERNAL_TOKEN"]) == 1
+    error_message = "authproxy reads foyrd's routes, with the token from SSM, never as a plain value"
   }
 
   assert {
@@ -264,8 +284,55 @@ run "front_door" {
 
   assert {
     condition = alltrue([
-      for s in data.aws_iam_policy_document.github_deploy.statement : !contains(s.actions, "iam:PassRole") || length(s.resources) == 1 && !contains(s.resources, "*")
+      for s in data.aws_iam_policy_document.github_deploy.statement : !contains(s.actions, "iam:PassRole") || s.resources == toset([aws_iam_role.exec["platform"].arn, aws_iam_role.foyrd.arn])
     ])
-    error_message = "the deploy role may only pass the platform execution role"
+    error_message = "the deploy role may only pass the platform execution role and foyrd's role"
+  }
+}
+
+run "control_plane" {
+  command = plan
+
+  assert {
+    condition     = !aws_db_instance.main.publicly_accessible && aws_db_instance.main.storage_encrypted && aws_db_instance.main.deletion_protection && aws_db_instance.main.backup_retention_period >= 7 && !aws_db_instance.main.skip_final_snapshot
+    error_message = "the database must be private, encrypted, protected from deletion and backed up"
+  }
+
+  assert {
+    condition     = aws_vpc_security_group_ingress_rule.rds_from_foyrd.cidr_ipv4 == null && aws_vpc_security_group_ingress_rule.rds_from_foyrd.from_port == 5432
+    error_message = "only foyrd may reach the database"
+  }
+
+  assert {
+    condition     = aws_vpc_security_group_ingress_rule.foyrd_from_authproxy.from_port == 9090 && aws_vpc_security_group_ingress_rule.foyrd_from_authproxy.cidr_ipv4 == null && aws_vpc_security_group_ingress_rule.foyrd_from_alb.from_port == 8080
+    error_message = "the load balancer reaches only foyrd's public port; the internal port is for authproxy only (ADR-030)"
+  }
+
+  assert {
+    condition     = aws_lb_target_group.foyrd.port == 8080 && aws_lb_target_group.authproxy.port == 8081
+    error_message = "the load balancer must never forward to foyrd's internal listener"
+  }
+
+  assert {
+    condition = alltrue([
+      for e in jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].environment : !strcontains(e.name, "SECRET") && !strcontains(e.name, "TOKEN") && !strcontains(e.name, "PRIVATE_KEY") && e.name != "FOYR_DATABASE_URL"
+    ]) && length(jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].secrets) == 4
+    error_message = "foyrd's secrets come from SSM, never plain environment values"
+  }
+
+  assert {
+    condition = alltrue(flatten([
+      for s in data.aws_iam_policy_document.foyrd.statement : [for a in s.actions : !strcontains(a, "*")]
+      ])) && alltrue([
+      for s in data.aws_iam_policy_document.foyrd.statement : s.resources == toset([aws_iam_role.exec["tenant"].arn]) if contains(s.actions, "iam:PassRole")
+    ])
+    error_message = "foyrd gets named actions only and may pass only the tenant execution role"
+  }
+
+  assert {
+    condition = alltrue([
+      for s in data.aws_iam_policy_document.foyrd.statement : alltrue([for r in s.resources : endswith(r, "/d-*")]) if contains(s.actions, "ecs:DeleteService")
+    ])
+    error_message = "foyrd may only create and delete app services (d-*), never platform services"
   }
 }

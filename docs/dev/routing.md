@@ -11,9 +11,9 @@ Decisions: ADR-030 (routing), ADR-031 (load balancer, certificate, DNS, image pi
 
 ## In AWS (8b)
 - `https://<slug>.apps.foyr.online` → ALB `foyr-apps` → ECS service `authproxy` (platform subnets) → the app.
-- New authproxy code reaches AWS by merging to `main`: the **Deploy authproxy** workflow builds and deploys it.
+- New authproxy code reaches AWS by merging to `main`: the **Deploy platform** workflow builds and deploys it.
   Run it by hand from the Actions tab (Run workflow) after changing authproxy settings in `infra/`.
-- Until 8c, routes come from `authproxy_static_routes` in `infra/variables.tf`, not from foyrd.
+- Routes come from foyrd in AWS at `foyrd.platform.foyr.internal:9090` (8c, docs/dev/platform.md).
 - Logs: CloudWatch `/foyr/platform`, streams `authproxy/...`.
 
 ```bash
@@ -86,4 +86,4 @@ so locally this answers 502 ("This app isn't responding"), which proves the rout
 | `internal/db/migrations/004_slugs.sql` | `apps.slug` and backfill |
 | `infra/dns.tf`, `infra/alb.tf`, `infra/authproxy.tf` | zone, certificate, load balancer, authproxy service, security groups |
 | `infra/github.tf` | OIDC provider and the deploy role |
-| `cmd/authproxy/Dockerfile`, `.github/workflows/authproxy-deploy.yml` | image and deploy pipeline |
+| `cmd/authproxy/Dockerfile`, `.github/workflows/platform-deploy.yml` | image and deploy pipeline |

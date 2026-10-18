@@ -2,6 +2,8 @@
 
 foyrd receives GitHub webhooks on `POST /webhooks/github`. Locally, GitHub cannot reach your laptop,
 so a smee.io channel relays webhooks to `localhost` (ADR-023).
+Since step 8c the App's webhook URL is `https://api.foyr.online/webhooks/github` (foyrd in AWS, docs/dev/platform.md);
+point it back at smee only for local webhook work, and run local foyrd with `FOYR_WORKERS=0`.
 
 ## One-time setup
 1. Create a channel at https://smee.io (click "Start a new channel") and copy its URL.
