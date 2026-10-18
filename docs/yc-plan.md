@@ -11,7 +11,7 @@
 ## Week by week
 | Dates | Goal | Work | Done |
 |---|---|---|---|
-| Oct 10 to 16 | `git push` → live URL (Phase 0) | Step 7: run the image on Fargate with a health check, deployment `live`. Step 8: authproxy routes `<app>.apps.foyr.online` (ADR-028). Step 4b: foyrd on ECS with ALB and RDS, paid from AWS credits, so it runs without the laptop. | [ ] |
+| Oct 10 to 16 | `git push` → live URL (Phase 0) | Step 7: run the image on Fargate with a health check, deployment `live`. Step 8: authproxy routes `<app>.apps.foyr.online` (ADR-028). Step 4b: foyrd on ECS with ALB and RDS, paid from AWS credits, so it runs without the laptop. | [x] Oct 19 |
 | Oct 16 | Founder-only page | After 8c: a page on foyrd behind a secret link showing deployments, steps, timings and failure reasons, for watching deploys in a browser and for application screenshots. Not the real dashboard. | [ ] |
 | Oct 17 to 23 | Login in front of every app | Magic-link login (Resend), sessions, authproxy session check and `X-Foyr-*` headers, invite by email | [ ] |
 | Oct 24 to 30 | Users and demo | Minimal dashboard (apps, deployments with steps), onboard 3 to 5 waitlist users, buy the separate apps domain before the first outside user (ADR-028), record the demo video | [ ] |
@@ -26,6 +26,7 @@ polished dashboard pages, audit log UI and export. The data for the audit log is
 - Apps deployed by outside users, deployments run, median push-to-live time
 - First live build: push to image in 1 min 22 s (deployment 2, 2026-10-10)
 - First live app: push to healthy running app in 2 min 10 s (deployment 4, 2026-10-10)
+- Laptop off: push to live in 1 min 52 s with foyrd, its database and authproxy all in AWS (deployment 5, 2026-10-19, ADR-032)
 - First public URL: https://foyr-hello.apps.foyr.online over HTTPS through the load balancer and authproxy (2026-10-18, ADR-031); about 80 ms from India
 
 ## Rules while racing
