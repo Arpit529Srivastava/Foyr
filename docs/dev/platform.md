@@ -68,3 +68,6 @@ Locally: start the `foyrd-founder` preview (`.claude/launch.json`, port 8090, lo
 | `cmd/foyrd/Dockerfile`, `.github/workflows/platform-deploy.yml` | images and deploys |
 | `scripts/platform-secrets.sh`, `scripts/db-import.sh` | one-time setup |
 | `internal/founder`, `scripts/founder-key.sh` | founder page and its key |
+
+## Pausing to save money
+`scripts/aws-pause.sh pause` scales apps, foyrd and authproxy to 0 tasks and stops the database; `scripts/aws-pause.sh resume` brings them back (about 5 minutes for the database). While paused, apps and the founder page are down and pushes are not deployed. AWS restarts a stopped database after 7 days.
