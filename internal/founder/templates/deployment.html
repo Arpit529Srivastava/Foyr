@@ -1,0 +1,21 @@
+{{define "deployment.html"}}{{template "head" .}}
+<header><div><p class="k"><a href="/founder">Foyr · founder</a> / {{.App.Slug}}</p><h1>Deployment #{{.D.ID}} {{template "status" .D.Status}}</h1></div>
+<form method="post" action="/founder/logout"><button>Sign out</button></form></header>
+<p><span class="m dim">{{short .D.CommitSHA}}</span> {{first .D.CommitMessage}}
+{{if .D.CommitURL}} · <a href="{{.D.CommitURL}}" rel="noreferrer">commit</a>{{end}}
+{{if .D.LogURL}} · <a href="{{.D.LogURL}}" rel="noreferrer">build log</a>{{end}}
+{{if and .Domain (eq .D.Status "live")}} · <a href="https://{{.App.Slug}}.{{.Domain}}" rel="noreferrer">open app</a>{{end}}</p>
+{{if .D.FailureReason}}<div class="fail"><b>Failed at {{.D.FailureStep}}</b>
+{{.D.FailureReason}}</div>{{end}}
+<div class="facts"><div><span class="dim">Push to live</span><b>{{dur (between .D.CreatedAt .D.LiveAt)}}</b></div>
+<div><span class="dim">Pushed</span><b>{{since .Now .D.CreatedAt}}</b><span class="dim">{{if .D.PusherLogin}}by {{.D.PusherLogin}}{{end}} on {{.D.Branch}}</span></div>
+<div><span class="dim">Service</span><b class="m" style="font-size:15px">{{or .D.ECSService "-"}}</b></div>
+<div><span class="dim">Trace ID</span><b class="m" style="font-size:13px">{{or .D.TraceID "-"}}</b></div></div>
+<h2>Build steps{{if .Refresh}} · refreshing every 5 s{{end}}</h2><div class="card"><table><tr><th>Step</th><th>Status</th><th>Took</th><th>Note</th></tr>
+{{range .Steps}}<tr><td>{{.Name}}</td><td>{{template "status" .Status}}</td><td class="m">{{dur .Duration}}</td><td class="wrap dim">{{.Message}}</td></tr>
+{{else}}<tr><td colspan="4" class="dim">No steps yet.</td></tr>{{end}}</table></div>
+<h2>Timeline</h2><div class="card"><table><tr><th>When</th><th>Change</th><th>Message</th></tr>
+{{range .Events}}<tr><td class="m dim">{{clock .OccurredAt}}</td><td>{{if .FromStatus}}{{.FromStatus}} → {{end}}{{template "status" .ToStatus}}</td><td class="wrap">{{.Message}}</td></tr>{{end}}</table></div>
+<h2>Audit trail</h2><div class="card"><table><tr><th>When</th><th>Action</th><th>Actor</th></tr>
+{{range .Audit}}<tr><td class="m dim">{{clock .OccurredAt}}</td><td class="m">{{.Action}}</td><td class="dim">{{.Actor.Type}}{{if .Actor.Login}} · {{.Actor.Login}}{{end}}</td></tr>{{end}}</table></div>
+{{template "foot"}}{{end}}

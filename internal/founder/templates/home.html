@@ -1,0 +1,16 @@
+{{define "home.html"}}{{template "head" .}}
+<header><div><p class="k">Foyr · founder</p><h1>Apps and deployments</h1></div>
+<form method="post" action="/founder/logout"><button>Sign out</button></form></header>
+<h2>Apps</h2><div class="card"><table><tr><th>App</th><th>Address</th><th>Live</th><th>Repo</th></tr>
+{{range .Apps}}<tr><td>{{.Slug}}</td>
+<td class="m">{{if and $.Domain .LiveDeployment}}<a href="https://{{.Slug}}.{{$.Domain}}" rel="noreferrer">{{.Slug}}.{{$.Domain}}</a>{{else}}<span class="dim">not live</span>{{end}}</td>
+<td>{{if .LiveDeployment}}<a href="/founder/deployments/{{.LiveDeployment}}">#{{.LiveDeployment}}</a>{{else}}<span class="dim">-</span>{{end}}</td>
+<td class="dim">{{.FullName}}</td></tr>
+{{else}}<tr><td colspan="4" class="dim">No apps yet. Install the GitHub App on a repo.</td></tr>{{end}}</table></div>
+<h2>Recent deployments{{if .Refresh}} · refreshing every 5 s{{end}}</h2>
+<div class="card"><table><tr><th>#</th><th>App</th><th>Status</th><th>Commit</th><th>Push to live</th><th>Pushed</th></tr>
+{{range .Recent}}<tr><td><a href="/founder/deployments/{{.ID}}">#{{.ID}}</a></td><td>{{.Slug}}</td><td>{{template "status" .Status}}</td>
+<td class="wrap"><span class="m dim">{{short .CommitSHA}}</span> {{first .CommitMessage}}{{if .FailureReason}}<br><span class="s-failed">{{.FailureStep}}: {{first .FailureReason}}</span>{{end}}</td>
+<td class="m">{{dur (between .CreatedAt .LiveAt)}}</td><td class="dim">{{since $.Now .CreatedAt}}{{if .PusherLogin}} · {{.PusherLogin}}{{end}}</td></tr>
+{{else}}<tr><td colspan="6" class="dim">No deployments yet. Push to a connected repo.</td></tr>{{end}}</table></div>
+{{template "foot"}}{{end}}

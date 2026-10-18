@@ -1,0 +1,18 @@
+{{define "head"}}<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">{{if .Refresh}}<meta http-equiv="refresh" content="5">{{end}}
+<title>{{block "title" .}}Foyr · founder{{end}}</title><style>
+:root{--bg:#0b0b0c;--card:#141416;--line:#26262a;--text:#ededed;--dim:#8a8a8f;--ok:#4ade80;--run:#60a5fa;--bad:#f87171;--old:#6b6b70}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:24px 16px 64px}a{color:inherit}header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:24px}
+.k{color:var(--dim);font:12px ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;margin:0}h1{font-size:26px;margin:4px 0 0}h2{font-size:15px;margin:32px 0 8px;color:var(--dim);font-weight:500}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow-x:auto}table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:10px 12px;border-top:1px solid var(--line);vertical-align:top;white-space:nowrap}th{color:var(--dim);font-weight:500;font-size:13px;border-top:0}
+td.wrap{white-space:normal;min-width:200px}.m{font-family:ui-monospace,monospace;font-size:13px}.dim{color:var(--dim)}
+.s{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;border:1px solid currentColor}
+.s-live,.s-succeeded{color:var(--ok)}.s-failed{color:var(--bad)}.s-queued,.s-building,.s-built,.s-deploying,.s-running{color:var(--run)}.s-superseded,.s-canceled,.s-skipped,.s-pending{color:var(--old)}
+.fail{border:1px solid var(--bad);color:#fecaca;background:#2a1314;border-radius:10px;padding:12px 16px;margin-top:16px;white-space:pre-wrap}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px}.facts div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.facts b{display:block;font-size:20px;margin-top:2px}button{background:none;border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:6px 10px;font:inherit;cursor:pointer}
+</style></head><body><main>{{end}}
+{{define "foot"}}</main></body></html>{{end}}
+{{define "status"}}<span class="s s-{{.}}">{{.}}</span>{{end}}
