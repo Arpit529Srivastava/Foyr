@@ -61,7 +61,7 @@ func (f fake) ListAudit(context.Context, store.AuditFilter) ([]store.AuditEvent,
 }
 
 func newHandler(k, status string) http.Handler {
-	h := &Handler{Data: fake{status: status}, Key: k, AppsDomain: "apps.example.test", Now: func() time.Time { return t0.Add(time.Hour) }}
+	h := &Handler{Data: fake{status: status}, Key: k, AppsDomain: "apps.example.test", Now: func() time.Time { return t0.Add(time.Hour) }, FailDelay: -1}
 	mux := http.NewServeMux()
 	h.Register(mux)
 	return mux
@@ -77,6 +77,9 @@ func do(h http.Handler, method, path string, form url.Values, cookie *http.Cooki
 	r := httptest.NewRequest(method, path, body)
 	if form != nil {
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+	if method == "POST" {
+		r.Header.Set("Origin", "http://"+r.Host) // what a browser sends from the page itself
 	}
 	if cookie != nil {
 		r.AddCookie(cookie)
@@ -160,7 +163,7 @@ func TestHomeShowsAppsAndDeployments(t *testing.T) {
 }
 
 func TestRefreshesWhileDeploying(t *testing.T) {
-	h := &Handler{Data: fake{status: "deploying"}, Key: key, Now: func() time.Time { return t0.Add(2 * time.Minute) }}
+	h := &Handler{Data: fake{status: "deploying"}, Key: key, Now: func() time.Time { return t0.Add(2 * time.Minute) }, FailDelay: -1}
 	mux := http.NewServeMux()
 	h.Register(mux)
 	c := signIn(t, mux)
@@ -215,7 +218,7 @@ func TestDeploymentNeedsSignIn(t *testing.T) {
 func TestSecurityHeaders(t *testing.T) {
 	w := do(newHandler(key, "live"), "GET", "/founder", nil, nil)
 	for name, want := range map[string]string{
-		"Content-Security-Policy": "default-src 'none'", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+		"Content-Security-Policy": "default-src 'none'", "Cache-Control": "no-store",
 		"X-Robots-Tag": "noindex", "X-Content-Type-Options": "nosniff",
 	} {
 		if !strings.Contains(w.Header().Get(name), want) {
@@ -284,5 +287,13 @@ func TestActivityPage(t *testing.T) {
 	}
 	if w := do(h, "GET", "/founder/activity", nil, nil); w.Code != http.StatusSeeOther {
 		t.Errorf("signed out = %d", w.Code)
+	}
+}
+
+// With "no-referrer" browsers send "Origin: null" on same-page form posts, so sign-in was refused as cross-site.
+func TestReferrerPolicyKeepsTheOriginOnOwnForms(t *testing.T) {
+	w := do(newHandler(key, "live"), "GET", "/founder", nil, nil)
+	if got := w.Header().Get("Referrer-Policy"); got != "same-origin" {
+		t.Fatalf("Referrer-Policy = %q, want same-origin", got)
 	}
 }

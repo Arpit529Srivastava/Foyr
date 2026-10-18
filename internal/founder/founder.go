@@ -4,11 +4,8 @@ package founder
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
 	"crypto/subtle"
 	"embed"
-	"encoding/hex"
 	"errors"
 	"html/template"
 	"net/http"
@@ -23,8 +20,14 @@ import (
 // CookieName is host-only and HTTPS-only by the __Host- prefix rules.
 const CookieName = "__Host-foyr_founder"
 
-// SessionTTL is how long a login lasts.
-const SessionTTL = 30 * 24 * time.Hour
+// SessionTTL is how long a login lasts; the server enforces it, not just the cookie.
+const SessionTTL = 24 * time.Hour
+
+// SidebarCookie remembers a hidden sidebar; it holds no secret.
+const SidebarCookie = "foyr_sidebar"
+
+// defaultFailDelay slows every wrong key.
+const defaultFailDelay = 500 * time.Millisecond
 
 // MinKeyLen keeps the key unguessable.
 const MinKeyLen = 32
@@ -47,6 +50,8 @@ type Handler struct {
 	Key        string // FOYR_FOUNDER_KEY; empty turns the page off
 	AppsDomain string // for links to live apps
 	Now        func() time.Time
+	FailDelay  time.Duration // 0 means defaultFailDelay; negative turns it off (tests)
+	lim        limiter
 }
 
 //go:embed templates/*.html
@@ -81,18 +86,11 @@ func (h *Handler) now() time.Time {
 	return time.Now()
 }
 
-// session is derived from the key, so the cookie never holds the key and a new key ends every session.
-func (h *Handler) session() string {
-	m := hmac.New(sha256.New, []byte(h.Key))
-	m.Write([]byte("foyr founder session v1"))
-	return hex.EncodeToString(m.Sum(nil))
-}
-
 func (h *Handler) enabled() bool { return len(h.Key) >= MinKeyLen }
 
 func (h *Handler) signedIn(r *http.Request) bool {
 	c, err := r.Cookie(CookieName)
-	return err == nil && subtle.ConstantTimeCompare([]byte(c.Value), []byte(h.session())) == 1
+	return err == nil && h.validSession(c.Value, h.now())
 }
 
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
@@ -140,19 +138,45 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	key := r.PostFormValue("key")
-	if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(key)), []byte(h.Key)) != 1 {
-		obs.Logger(r.Context()).Warn("founder login refused")
+	log := obs.Logger(r.Context())
+	if !sameOrigin(r) {
+		log.Warn("founder login refused: cross-site post", "origin", r.Header.Get("Origin"))
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	ip, now := clientIP(r), h.now()
+	if locked, wait := h.lim.blocked(ip, now); locked {
+		log.Warn("founder login refused: locked out", "ip", ip)
+		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+		h.render(w, r, http.StatusTooManyRequests, "login.html", map[string]any{
+			"Error": "Too many wrong keys. Try again in " + fmtDur(wait.Round(time.Minute)+time.Minute) + "."})
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(r.PostFormValue("key"))), []byte(h.Key)) != 1 {
+		h.lim.fail(ip, now)
+		log.Warn("founder login refused: wrong key", "ip", ip)
+		delay := h.FailDelay
+		if delay == 0 {
+			delay = defaultFailDelay
+		}
+		if delay > 0 {
+			time.Sleep(delay)
+		}
 		h.render(w, r, http.StatusUnauthorized, "login.html", map[string]any{"Error": "That key is not right."})
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: CookieName, Value: h.session(), Path: "/", MaxAge: int(SessionTTL.Seconds()),
+	http.SetCookie(w, &http.Cookie{Name: CookieName, Value: h.newSession(now), Path: "/", MaxAge: int(SessionTTL.Seconds()),
 		Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode})
-	obs.Logger(r.Context()).Info("founder signed in")
+	log.Info("founder signed in", "ip", ip)
 	http.Redirect(w, r, "/founder", http.StatusSeeOther)
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	http.SetCookie(w, &http.Cookie{Name: CookieName, Value: "", Path: "/", MaxAge: -1, Secure: true, HttpOnly: true,
 		SameSite: http.SameSiteStrictMode})
 	http.Redirect(w, r, "/founder", http.StatusSeeOther)
@@ -281,6 +305,9 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request, name, section str
 		data["Apps"] = apps
 	}
 	data["Signed"], data["Section"], data["Domain"], data["Now"] = true, section, h.AppsDomain, h.now()
+	if c, err := r.Cookie(SidebarCookie); err == nil && c.Value == "collapsed" {
+		data["Collapsed"] = true
+	}
 	h.render(w, r, http.StatusOK, name, data)
 }
 
@@ -288,9 +315,14 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, nam
 	hd := w.Header()
 	hd.Set("Content-Type", "text/html; charset=utf-8")
 	hd.Set("Cache-Control", "no-store")
-	hd.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+	nonce := newNonce()
+	data["Nonce"] = nonce
+	hd.Set("Content-Security-Policy", "default-src 'none'; script-src 'nonce-"+nonce+"'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+	hd.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+	hd.Set("X-Frame-Options", "DENY")
+	hd.Set("Cross-Origin-Opener-Policy", "same-origin")
 	hd.Set("X-Content-Type-Options", "nosniff")
-	hd.Set("Referrer-Policy", "no-referrer")
+	hd.Set("Referrer-Policy", "same-origin") // "no-referrer" makes browsers send Origin: null on our own forms
 	hd.Set("X-Robots-Tag", "noindex, nofollow")
 	w.WriteHeader(status)
 	if err := pages.ExecuteTemplate(w, name, data); err != nil {
