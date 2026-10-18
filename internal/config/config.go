@@ -27,7 +27,9 @@ type Config struct {
 	InternalToken       string // shared with authproxy
 	AWSRegion           string
 	CodeBuildProject    string
-	Workers             int // build workers in this process; 0 turns building off
+	Workers             int    // build workers in this process; 0 turns building off
+	FounderKey          string // FOYR_FOUNDER_KEY for the founder page (ADR-033); empty turns it off
+	AppsDomain          string // APPS_DOMAIN, for links to live apps
 
 	// Where apps run (ADR-029); required when Workers > 0. Values come from `tofu output`.
 	ECSCluster          string
@@ -123,6 +125,12 @@ func Load(getenv func(string) string) (*Config, error) {
 	default:
 		c.InternalToken = v
 	}
+
+	c.FounderKey = getenv("FOYR_FOUNDER_KEY")
+	if c.FounderKey != "" && len(c.FounderKey) < 32 {
+		errs = append(errs, errors.New("FOYR_FOUNDER_KEY must be at least 32 characters"))
+	}
+	c.AppsDomain = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(getenv("FOYR_APPS_DOMAIN"))), ".")
 
 	key, err := loadKey(getenv)
 	if err != nil {

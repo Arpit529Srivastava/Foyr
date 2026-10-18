@@ -23,14 +23,57 @@ type App struct {
 
 // GetApp returns one app.
 func (s *Store) GetApp(ctx context.Context, id int64) (App, error) {
-	var a App
-	err := s.Pool.QueryRow(ctx, `SELECT id, installation_id, github_repo_id, full_name, default_branch,
-		removed_at IS NOT NULL, coalesce(live_deployment_id, 0), coalesce(slug, '') FROM apps WHERE id = $1`, id).
-		Scan(&a.ID, &a.InstallationID, &a.GitHubRepoID, &a.FullName, &a.DefaultBranch, &a.Removed, &a.LiveDeployment, &a.Slug)
+	a, err := scanApp(s.Pool.QueryRow(ctx, `SELECT `+appCols+` FROM apps WHERE id = $1`, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
 	return a, err
+}
+
+const appCols = `id, installation_id, github_repo_id, full_name, default_branch,
+	removed_at IS NOT NULL, coalesce(live_deployment_id, 0), coalesce(slug, '')`
+
+func scanApp(r pgx.Row) (App, error) {
+	var a App
+	err := r.Scan(&a.ID, &a.InstallationID, &a.GitHubRepoID, &a.FullName, &a.DefaultBranch, &a.Removed, &a.LiveDeployment, &a.Slug)
+	return a, err
+}
+
+// ListApps returns every connected app, by name.
+func (s *Store) ListApps(ctx context.Context) ([]App, error) {
+	rows, err := s.Pool.Query(ctx, `SELECT `+appCols+` FROM apps WHERE removed_at IS NULL ORDER BY full_name`)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (App, error) { return scanApp(r) })
+}
+
+// AppDeployment is a deployment with its app's name, for lists across apps.
+type AppDeployment struct {
+	Deployment
+	AppName string
+	Slug    string
+}
+
+// RecentDeployments returns the newest deployments across all apps.
+func (s *Store) RecentDeployments(ctx context.Context, limit int) ([]AppDeployment, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	rows, err := s.Pool.Query(ctx, `SELECT d.*, a.full_name, coalesce(a.slug, '')
+		FROM (SELECT `+deploymentCols+` FROM deployments ORDER BY id DESC LIMIT $1) d
+		JOIN apps a ON a.id = d.app_id ORDER BY d.id DESC`, limit)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (AppDeployment, error) {
+		var d AppDeployment
+		err := r.Scan(&d.ID, &d.AppID, &d.InstallationID, &d.CommitSHA, &d.Branch, &d.CommitMessage, &d.CommitURL,
+			&d.PusherLogin, &d.Trigger, &d.DeliveryID, &d.TraceID, &d.Status, &d.FailureStep, &d.FailureReason,
+			&d.BuildID, &d.ImageURI, &d.LogURL, &d.TaskDefinition, &d.ECSService, &d.CreatedAt, &d.StartedAt, &d.FinishedAt,
+			&d.LiveAt, &d.AppName, &d.Slug)
+		return d, err
+	})
 }
 
 // SetBuild links a deployment to its CodeBuild run, log and target image, and audits the start.

@@ -113,3 +113,38 @@ func TestSetLogURL(t *testing.T) {
 		t.Fatalf("log url = %q", got.LogURL)
 	}
 }
+
+func TestListAppsSkipsRemovedAndSortsByName(t *testing.T) {
+	s := newStore(t)
+	s.CreateDeployment(ctx, push(1, 20, sha(1)))
+	s.CreateDeployment(ctx, push(1, 10, sha(2)))
+	s.CreateDeployment(ctx, push(2, 30, sha(3)))
+	if err := s.SyncInstallation(ctx, store.InstallationChange{InstallationID: 2, AccountLogin: "octo-dev", Action: "deleted"}); err != nil {
+		t.Fatal(err)
+	}
+	apps, err := s.ListApps(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, a := range apps {
+		names = append(names, a.FullName)
+	}
+	if j := join(names); j != "octo-dev/repo-10,octo-dev/repo-20" {
+		t.Fatalf("apps = %s", j)
+	}
+}
+
+func TestRecentDeploymentsAcrossApps(t *testing.T) {
+	s := newStore(t)
+	a, _, _ := s.CreateDeployment(ctx, push(1, 10, sha(1)))
+	b, _, _ := s.CreateDeployment(ctx, push(2, 20, sha(2)))
+	c, _, _ := s.CreateDeployment(ctx, push(1, 10, sha(3)))
+	got, err := s.RecentDeployments(ctx, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].ID != c.ID || got[1].ID != b.ID || got[0].Slug == "" || got[1].AppName != "octo-dev/repo-20" {
+		t.Fatalf("recent = %+v (a=%d)", got, a.ID)
+	}
+}

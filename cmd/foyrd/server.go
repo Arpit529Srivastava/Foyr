@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Arpit529Srivastava/Foyr/internal/config"
+	"github.com/Arpit529Srivastava/Foyr/internal/founder"
 	"github.com/Arpit529Srivastava/Foyr/internal/github"
 	"github.com/Arpit529Srivastava/Foyr/internal/health"
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
@@ -18,6 +19,7 @@ import (
 func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", health.Handler)
+	(&founder.Handler{Data: st, Key: cfg.FounderKey, AppsDomain: cfg.AppsDomain}).Register(mux)
 	mux.Handle("POST /webhooks/github", &github.Handler{
 		Secret:    cfg.GitHubWebhookSecret,
 		OnPush:    onPush(st),
