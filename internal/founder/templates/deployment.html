@@ -1,19 +1,19 @@
-{{define "deployment.html"}}{{template "head" .}}{{template "nav" .}}
+{{define "deployment.html"}}{{template "head" .}}{{template "frame" .}}
 <style>
 .top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:22px}
 .top h1{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.links{display:flex;gap:8px;flex-wrap:wrap}
 .links a{border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 14px;font-size:14px;color:var(--dim)}.links a.go{background:var(--a);color:#000;border-color:var(--a);font-weight:600}.links a.go:hover{background:var(--a2)}
-.facts{grid-template-columns:repeat(4,1fr);margin:14px 0}.facts .card{padding:18px 20px}.facts b{display:block;font-size:30px;font-weight:600;letter-spacing:-.04em;margin-top:4px}
+.facts{grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));margin:14px 0}.facts .card{padding:18px 20px}.facts b{display:block;font-size:30px;font-weight:600;letter-spacing:-.04em;margin-top:4px}
 .facts .k{font-size:15px;word-break:break-all;font-weight:500;letter-spacing:0}
 .gantt{display:grid;gap:10px}.gantt div{display:grid;grid-template-columns:120px 1fr 60px;gap:14px;align-items:center;font-size:14px}
 .gantt .track{height:30px;background:var(--card);border-radius:10px;position:relative}
 .gantt .track i{position:absolute;top:4px;bottom:4px;border-radius:7px;background:linear-gradient(90deg,var(--a),var(--a2))}
 .gantt .track i.s-failed{background:var(--bad)}.gantt .track i.s-running{background:repeating-linear-gradient(135deg,var(--a) 0 6px,var(--a2) 6px 12px)}
 .gantt small{grid-column:2/4;color:var(--dim);margin-top:-6px;font-size:13px}
-.two{grid-template-columns:1fr 1fr;margin-top:14px}
-@media (max-width:900px){.facts{grid-template-columns:1fr 1fr}.two{grid-template-columns:1fr}.gantt div{grid-template-columns:90px 1fr 50px}}
+.two{grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));margin-top:14px}
+@media (max-width:600px){.facts{grid-template-columns:1fr 1fr}.two{grid-template-columns:1fr}.gantt div{grid-template-columns:90px 1fr 50px}}
 </style>
-<div class="top"><div><p class="dim" style="margin:0 0 6px"><a href="/founder">Overview</a> / {{.App.Slug}}</p>
+<div class="top"><div><p class="dim" style="margin:0 0 6px"><a href="/founder/deployments">Deployments</a> / <a href="/founder/deployments?app={{.App.ID}}">{{.App.Slug}}</a></p>
 <h1>Deployment #{{.D.ID}} {{template "status" .D.Status}}</h1>
 <p style="margin:10px 0 0"><span class="sha">{{short .D.CommitSHA}}</span> {{first .D.CommitMessage}}</p></div>
 <div class="links">{{if and .Domain (eq .D.Status "live")}}<a class="go" href="https://{{.App.Slug}}.{{.Domain}}" rel="noreferrer">Open app</a>{{end}}
@@ -35,4 +35,4 @@
 <div class="card"><h2>Audit trail</h2><div class="scroll"><table>
 {{range .Audit}}<tr><td class="n dim">{{clock .OccurredAt}}</td><td class="n">{{.Action}}</td><td class="dim">{{if .Actor.Login}}{{.Actor.Login}}{{else}}{{.Actor.Type}}{{end}}</td></tr>{{end}}</table></div></div>
 </section>
-{{template "foot"}}{{end}}
+{{template "endframe"}}{{template "foot"}}{{end}}

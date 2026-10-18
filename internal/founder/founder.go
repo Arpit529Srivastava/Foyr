@@ -33,6 +33,7 @@ const MinKeyLen = 32
 type Data interface {
 	ListApps(ctx context.Context) ([]store.App, error)
 	RecentDeployments(ctx context.Context, limit int) ([]store.AppDeployment, error)
+	ListDeployments(ctx context.Context, appID, beforeID int64, limit int) ([]store.Deployment, error)
 	GetDeployment(ctx context.Context, id int64) (store.Deployment, error)
 	GetApp(ctx context.Context, id int64) (store.App, error)
 	Steps(ctx context.Context, deploymentID int64) ([]store.Step, error)
@@ -68,7 +69,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /founder", h.home)
 	mux.HandleFunc("POST /founder/login", h.login)
 	mux.HandleFunc("POST /founder/logout", h.logout)
-	mux.HandleFunc("GET /founder/deployments/{id}", h.deployment)
+	mux.HandleFunc("GET /founder/deployments", h.guard(h.deployments))
+	mux.HandleFunc("GET /founder/deployments/{id}", h.guard(h.deployment))
+	mux.HandleFunc("GET /founder/activity", h.guard(h.activity))
 }
 
 func (h *Handler) now() time.Time {
@@ -126,10 +129,9 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		}
 		pipeline = stepBars(steps, h.now())
 	}
-	h.render(w, r, http.StatusOK, "home.html", map[string]any{
-		"Apps": apps, "Recent": recent[:min(len(recent), 8)], "Domain": h.AppsDomain, "Refresh": refresh, "Now": h.now(),
+	h.page(w, r, "home.html", "overview", map[string]any{
+		"Apps": apps, "Recent": recent[:min(len(recent), 8)], "Refresh": refresh,
 		"O": summarize(recent, apps, h.now()), "Latest": latest, "Pipeline": pipeline,
-		"Tab": "home", "LatestID": latestID(latest), "NavLabel": "Latest deployment",
 	})
 }
 
@@ -156,15 +158,77 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/founder", http.StatusSeeOther)
 }
 
+// guard sends signed-out visitors to the sign-in page, and 404s when the page is off.
+func (h *Handler) guard(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !h.enabled() {
+			http.NotFound(w, r)
+			return
+		}
+		if !h.signedIn(r) {
+			http.Redirect(w, r, "/founder", http.StatusSeeOther)
+			return
+		}
+		next(w, r)
+	}
+}
+
+// deployments lists every deployment, or one app's with ?app=<id>.
+func (h *Handler) deployments(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	data := map[string]any{}
+	var rows []store.AppDeployment
+	if v := r.URL.Query().Get("app"); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id <= 0 {
+			http.NotFound(w, r)
+			return
+		}
+		app, err := h.Data.GetApp(ctx, id)
+		if errors.Is(err, store.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		list, err := h.Data.ListDeployments(ctx, id, 0, 100)
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		for _, d := range list {
+			rows = append(rows, store.AppDeployment{Deployment: d, AppName: app.FullName, Slug: app.Slug})
+		}
+		data["App"] = app
+	} else {
+		list, err := h.Data.RecentDeployments(ctx, 100)
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		rows = list
+	}
+	refresh := false
+	for _, d := range rows {
+		refresh = refresh || h.moving(d.Status, d.CreatedAt)
+	}
+	data["Rows"], data["Refresh"] = rows, refresh
+	h.page(w, r, "deployments.html", "deployments", data)
+}
+
+// activity is the audit log: every change foyrd recorded, newest first.
+func (h *Handler) activity(w http.ResponseWriter, r *http.Request) {
+	events, err := h.Data.ListAudit(r.Context(), store.AuditFilter{Limit: 200})
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	h.page(w, r, "activity.html", "activity", map[string]any{"Events": events})
+}
+
 func (h *Handler) deployment(w http.ResponseWriter, r *http.Request) {
-	if !h.enabled() {
-		http.NotFound(w, r)
-		return
-	}
-	if !h.signedIn(r) {
-		http.Redirect(w, r, "/founder", http.StatusSeeOther)
-		return
-	}
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || id <= 0 {
 		http.NotFound(w, r)
@@ -200,11 +264,24 @@ func (h *Handler) deployment(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	h.render(w, r, http.StatusOK, "deployment.html", map[string]any{
-		"D": d, "App": app, "Steps": stepBars(steps, h.now()), "Events": events, "Audit": audit, "Domain": h.AppsDomain,
-		"Refresh": h.moving(d.Status, d.CreatedAt), "Now": h.now(),
-		"Tab": "deployment", "LatestID": d.ID, "NavLabel": "Deployment #" + strconv.FormatInt(d.ID, 10),
+	h.page(w, r, "deployment.html", "deployments", map[string]any{
+		"D": d, "App": app, "Steps": stepBars(steps, h.now()), "Events": events, "Audit": audit,
+		"Refresh": h.moving(d.Status, d.CreatedAt),
 	})
+}
+
+// page renders a signed-in page with the sidebar: its app list, the current section and the clock.
+func (h *Handler) page(w http.ResponseWriter, r *http.Request, name, section string, data map[string]any) {
+	if _, ok := data["Apps"]; !ok {
+		apps, err := h.Data.ListApps(r.Context())
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		data["Apps"] = apps
+	}
+	data["Signed"], data["Section"], data["Domain"], data["Now"] = true, section, h.AppsDomain, h.now()
+	h.render(w, r, http.StatusOK, name, data)
 }
 
 func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, name string, data map[string]any) {
@@ -278,13 +355,6 @@ func since(now, t time.Time) string {
 	default:
 		return strconv.Itoa(int(d.Hours()/24)) + "d ago"
 	}
-}
-
-func latestID(d *store.AppDeployment) int64 {
-	if d == nil {
-		return 0
-	}
-	return d.ID
 }
 
 func firstLine(s string) string {

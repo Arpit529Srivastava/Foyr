@@ -28,6 +28,13 @@ func (f fake) RecentDeployments(context.Context, int) ([]store.AppDeployment, er
 		CommitMessage: "feat: <b>status</b> card\nbody", CreatedAt: t0, LiveAt: &live, PusherLogin: "octo"}, AppName: "octo/foyr-hello", Slug: "foyr-hello"}}, nil
 }
 
+func (f fake) ListDeployments(_ context.Context, appID, _ int64, _ int) ([]store.Deployment, error) {
+	if appID != 1 {
+		return nil, nil
+	}
+	return []store.Deployment{{ID: 5, AppID: 1, Status: f.status, CommitSHA: "938473bf40b4", CommitMessage: "only app one", CreatedAt: t0}}, nil
+}
+
 func (f fake) GetDeployment(_ context.Context, id int64) (store.Deployment, error) {
 	if id != 5 {
 		return store.Deployment{}, store.ErrNotFound
@@ -142,7 +149,7 @@ func TestHomeShowsAppsAndDeployments(t *testing.T) {
 	w := do(h, "GET", "/founder", nil, signIn(t, h))
 	b := w.Body.String()
 	for _, want := range []string{`https://foyr-hello.apps.example.test`, `/founder/deployments/5`, "1m52s", "foyr-hello, 1h ago",
-		"#5 feat: &lt;b&gt;status&lt;/b&gt; card", "Median push to live", "100%</b>reached live", "Build image", "Latest deployment"} {
+		"#5 feat: &lt;b&gt;status&lt;/b&gt; card", "Median push to live", "100%</b>reached live", "Build image", `class="on" aria-current="page"><svg`} {
 		if !strings.Contains(b, want) {
 			t.Errorf("home missing %q", want)
 		}
@@ -231,5 +238,51 @@ func TestFmtDur(t *testing.T) {
 		if got := fmtDur(d); got != want {
 			t.Errorf("fmtDur(%v) = %q, want %q", d, got, want)
 		}
+	}
+}
+
+func TestSidebarOnEveryPage(t *testing.T) {
+	h := newHandler(key, "live")
+	c := signIn(t, h)
+	for _, path := range []string{"/founder", "/founder/deployments", "/founder/activity", "/founder/deployments/5"} {
+		b := do(h, "GET", path, nil, c).Body.String()
+		for _, want := range []string{`<aside`, `href="/founder/deployments?app=1"`, `href="/founder/activity"`, "apps.example.test"} {
+			if !strings.Contains(b, want) {
+				t.Errorf("%s: sidebar missing %q", path, want)
+			}
+		}
+	}
+	if b := do(h, "GET", "/founder", nil, nil).Body.String(); strings.Contains(b, "<aside") {
+		t.Error("the sign-in page must not show the sidebar")
+	}
+}
+
+func TestDeploymentsPage(t *testing.T) {
+	h := newHandler(key, "failed")
+	c := signIn(t, h)
+	all := do(h, "GET", "/founder/deployments", nil, c)
+	if all.Code != 200 || !strings.Contains(all.Body.String(), "feat: &lt;b&gt;status&lt;/b&gt; card") {
+		t.Fatalf("all deployments: %d", all.Code)
+	}
+	one := do(h, "GET", "/founder/deployments?app=1", nil, c).Body.String()
+	if !strings.Contains(one, "only app one") || strings.Contains(one, "status&lt;/b&gt; card") {
+		t.Error("?app=1 must list only that app's deployments")
+	}
+	if w := do(h, "GET", "/founder/deployments?app=x", nil, c); w.Code != http.StatusNotFound {
+		t.Errorf("bad app filter = %d", w.Code)
+	}
+	if w := do(h, "GET", "/founder/deployments", nil, nil); w.Code != http.StatusSeeOther {
+		t.Errorf("signed out = %d", w.Code)
+	}
+}
+
+func TestActivityPage(t *testing.T) {
+	h := newHandler(key, "live")
+	b := do(h, "GET", "/founder/activity", nil, signIn(t, h)).Body.String()
+	if !strings.Contains(b, "deployment.created") || !strings.Contains(b, "octo") {
+		t.Fatal("activity page should list audit events")
+	}
+	if w := do(h, "GET", "/founder/activity", nil, nil); w.Code != http.StatusSeeOther {
+		t.Errorf("signed out = %d", w.Code)
 	}
 }
