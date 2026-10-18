@@ -237,7 +237,7 @@ func TestLogoutClearsTheCookie(t *testing.T) {
 
 func TestFmtDur(t *testing.T) {
 	for d, want := range map[time.Duration]string{0: "-", 850 * time.Millisecond: "850ms", 50 * time.Second: "50s",
-		112 * time.Second: "1m52s", 120 * time.Second: "2m", 3*time.Hour + 4*time.Minute: "3h4m0s"} {
+		112 * time.Second: "1m52s", 120 * time.Second: "2m", 3*time.Hour + 4*time.Minute: "3h04m"} {
 		if got := fmtDur(d); got != want {
 			t.Errorf("fmtDur(%v) = %q, want %q", d, got, want)
 		}

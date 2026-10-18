@@ -11,10 +11,14 @@ import (
 // ist is the founder's time zone, for the activity grid; a fixed offset needs no tzdata in the image.
 var ist = time.FixedZone("IST", 5*3600+1800)
 
+// recentLimit is how many deployments the overview reads.
+const recentLimit = 100
+
 // Overview is everything the home page draws, worked out from real deployments.
 type Overview struct {
 	Median, Fastest time.Duration
 	Total           int
+	Capped          bool // the list hit its limit, so the numbers cover only the newest deployments
 	LiveApps        int
 	SuccessPct      int
 	Bars            []Bar
@@ -46,7 +50,7 @@ type StepBar struct {
 
 // summarize works out the home page numbers; recent is newest first.
 func summarize(recent []store.AppDeployment, apps []store.App, now time.Time) Overview {
-	o := Overview{Total: len(recent)}
+	o := Overview{Total: len(recent), Capped: len(recent) >= recentLimit}
 	for _, a := range apps {
 		if a.LiveDeployment != 0 {
 			o.LiveApps++
@@ -88,7 +92,10 @@ func summarize(recent []store.AppDeployment, apps []store.App, now time.Time) Ov
 		switch {
 		case d.LiveAt != nil:
 			took := d.LiveAt.Sub(d.CreatedAt)
-			b.Kind, b.Height = "live", max(4, int(took*100/slowest))
+			b.Kind, b.Height = "live", 100
+			if slowest > 0 {
+				b.Height = max(4, int(took*100/slowest))
+			}
 			b.Title = fmt.Sprintf("#%d %s: live in %s", d.ID, d.Slug, fmtDur(took))
 		case d.Status == store.StatusFailed || d.Status == store.StatusCanceled:
 			b.Kind = "failed"

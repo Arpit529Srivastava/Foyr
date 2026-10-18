@@ -15,12 +15,14 @@ import (
 	"time"
 )
 
-// Lockout limits (ADR-033): per address, and across all addresses against spread-out guessing.
+// Lockout limits (ADR-033). Per address: a hard lockout. Across all addresses: a slow mode instead of a
+// lockout, because with a 256-bit key a global lock would mostly let strangers lock the founder out.
 const (
 	MaxFailsPerIP = 5
 	MaxFailsTotal = 30
 	LockoutWindow = 15 * time.Minute
-	maxTracked    = 10000 // addresses remembered at once, so a flood can't exhaust memory
+	SlowModeGap   = 10 * time.Second // in slow mode, one attempt per gap from anyone
+	maxTracked    = 10000            // addresses remembered at once, so a flood can't exhaust memory
 )
 
 // newSession issues "v2.<expiry>.<random id>.<mac>"; the MAC binds all of it to the key.
@@ -55,11 +57,13 @@ func (h *Handler) mac(body string) string {
 	return hex.EncodeToString(m.Sum(nil))
 }
 
-// limiter counts failed sign-ins per address and in total over a sliding window.
+// limiter counts sign-in attempts per address and in total over a sliding window. An attempt is counted
+// when it starts and forgiven if the key was right, so parallel requests can't all pass one check.
 type limiter struct {
 	mu    sync.Mutex
 	perIP map[string][]time.Time
 	all   []time.Time
+	last  time.Time // last attempt allowed, for slow mode
 }
 
 func recent(ts []time.Time, now time.Time) []time.Time {
@@ -71,40 +75,52 @@ func recent(ts []time.Time, now time.Time) []time.Time {
 	return ts[i:]
 }
 
-// blocked reports whether ip may not try now, and for how long.
-func (l *limiter) blocked(ip string, now time.Time) (bool, time.Duration) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.all = recent(l.all, now)
-	mine := recent(l.perIP[ip], now)
-	if len(mine) == 0 {
-		delete(l.perIP, ip)
-	} else {
-		l.perIP[ip] = mine
-	}
-	switch {
-	case len(mine) >= MaxFailsPerIP:
-		return true, mine[0].Add(LockoutWindow).Sub(now)
-	case len(l.all) >= MaxFailsTotal:
-		return true, l.all[0].Add(LockoutWindow).Sub(now)
-	}
-	return false, 0
-}
-
-func (l *limiter) fail(ip string, now time.Time) {
+// begin reserves an attempt for ip, or says how long to wait.
+func (l *limiter) begin(ip string, now time.Time) (bool, time.Duration) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.perIP == nil {
 		l.perIP = map[string][]time.Time{}
 	}
+	l.all = recent(l.all, now)
+	mine := recent(l.perIP[ip], now)
+	switch {
+	case len(mine) >= MaxFailsPerIP:
+		l.perIP[ip] = mine
+		return false, mine[0].Add(LockoutWindow).Sub(now)
+	case len(l.all) >= MaxFailsTotal && now.Sub(l.last) < SlowModeGap:
+		return false, SlowModeGap - now.Sub(l.last)
+	}
 	if _, ok := l.perIP[ip]; !ok && len(l.perIP) >= maxTracked {
-		for k := range l.perIP { // drop an arbitrary old entry; the total limit still applies
+		for k := range l.perIP { // drop an arbitrary entry; the total still counts it
 			delete(l.perIP, k)
 			break
 		}
 	}
-	l.perIP[ip] = append(l.perIP[ip], now)
+	l.perIP[ip] = append(mine, now)
 	l.all = append(l.all, now)
+	l.last = now
+	return true, 0
+}
+
+// forgive removes the attempt begun at t, after the right key.
+func (l *limiter) forgive(ip string, t time.Time) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.perIP[ip] = drop(l.perIP[ip], t)
+	if len(l.perIP[ip]) == 0 {
+		delete(l.perIP, ip)
+	}
+	l.all = drop(l.all, t)
+}
+
+func drop(ts []time.Time, t time.Time) []time.Time {
+	for i := len(ts) - 1; i >= 0; i-- {
+		if ts[i].Equal(t) {
+			return append(ts[:i], ts[i+1:]...)
+		}
+	}
+	return ts
 }
 
 // clientIP is the address the load balancer saw: the rightmost X-Forwarded-For entry, which it appends

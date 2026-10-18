@@ -4,7 +4,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -109,14 +112,40 @@ func TestLoginLocksOutOneAddressAfterFiveMisses(t *testing.T) {
 	}
 }
 
-func TestLoginLocksEveryoneOutUnderASpreadAttack(t *testing.T) {
+func TestSpreadAttackSlowsSignInsButCantLockTheFounderOut(t *testing.T) {
 	c := &clock{t0}
 	_, mux := secureHandler(c)
 	for i := range MaxFailsTotal {
-		login(mux, "wrong-key-wrong-key-wrong-key-00", "9.9.9."+string(rune('0'+i%10))+string(rune('0'+i/10)), "http://example.com")
+		login(mux, "wrong-key-wrong-key-wrong-key-00", "9.9.9."+strconv.Itoa(i), "http://example.com")
 	}
 	if w := login(mux, key, "5.6.7.8", "http://example.com"); w.Code != http.StatusTooManyRequests {
-		t.Fatalf("fresh address during a spread attack = %d, want 429", w.Code)
+		t.Fatalf("right after a spread attack = %d, want 429 (slow mode)", w.Code)
+	}
+	c.t = c.t.Add(SlowModeGap + time.Second)
+	if w := login(mux, key, "5.6.7.8", "http://example.com"); w.Code != http.StatusSeeOther {
+		t.Fatalf("founder after the slow-mode gap = %d, want to sign in", w.Code)
+	}
+}
+
+// Parallel guesses from one address must not all slip past the check before any failure is counted.
+func TestParallelGuessesCantBeatTheLockout(t *testing.T) {
+	h := &Handler{Data: fake{status: "live"}, Key: key, Now: func() time.Time { return t0 }, FailDelay: 50 * time.Millisecond}
+	mux := http.NewServeMux()
+	h.Register(mux)
+	var wg sync.WaitGroup
+	var tried atomic.Int32
+	for range 40 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if login(mux, "wrong-key-wrong-key-wrong-key-00", "1.2.3.4", "http://example.com").Code == http.StatusUnauthorized {
+				tried.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if n := tried.Load(); n > MaxFailsPerIP {
+		t.Fatalf("%d guesses were checked, want at most %d", n, MaxFailsPerIP)
 	}
 }
 

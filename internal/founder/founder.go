@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"embed"
 	"errors"
+	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -62,7 +63,6 @@ var pages = template.Must(template.New("").Funcs(template.FuncMap{
 	"since":   since,
 	"short":   func(s string) string { return s[:min(len(s), 7)] },
 	"first":   firstLine,
-	"active":  active,
 	"between": between,
 	"clock":   func(t time.Time) string { return t.UTC().Format("Jan 2 15:04:05 UTC") },
 	"delay":   func(i, step int) int { return min(i*step, 1200) },
@@ -107,7 +107,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	recent, err := h.Data.RecentDeployments(r.Context(), 100)
+	recent, err := h.Data.RecentDeployments(r.Context(), recentLimit)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -145,16 +145,15 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ip, now := clientIP(r), h.now()
-	if locked, wait := h.lim.blocked(ip, now); locked {
-		log.Warn("founder login refused: locked out", "ip", ip)
+	if ok, wait := h.lim.begin(ip, now); !ok {
+		log.Warn("founder login refused: rate limited", "ip", ip)
 		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
 		h.render(w, r, http.StatusTooManyRequests, "login.html", map[string]any{
-			"Error": "Too many wrong keys. Try again in " + fmtDur(wait.Round(time.Minute)+time.Minute) + "."})
+			"Error": "Too many sign-in attempts. Try again in " + fmtDur(wait.Round(time.Second)+time.Second) + "."})
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(r.PostFormValue("key"))), []byte(h.Key)) != 1 {
-		h.lim.fail(ip, now)
 		log.Warn("founder login refused: wrong key", "ip", ip)
 		delay := h.FailDelay
 		if delay == 0 {
@@ -166,6 +165,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		h.render(w, r, http.StatusUnauthorized, "login.html", map[string]any{"Error": "That key is not right."})
 		return
 	}
+	h.lim.forgive(ip, now)
 	http.SetCookie(w, &http.Cookie{Name: CookieName, Value: h.newSession(now), Path: "/", MaxAge: int(SessionTTL.Seconds()),
 		Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode})
 	log.Info("founder signed in", "ip", ip)
@@ -362,7 +362,8 @@ func fmtDur(d time.Duration) string {
 	case d < time.Hour:
 		return strings.Replace(d.Round(time.Second).String(), "m0s", "m", 1)
 	default:
-		return d.Round(time.Minute).String()
+		d = d.Round(time.Minute)
+		return fmt.Sprintf("%dh%02dm", int(d.Hours()), int(d.Minutes())%60)
 	}
 }
 

@@ -23,3 +23,4 @@ Things that were temporary until `foyr.online` was bought (ADR-021). The domain 
 
 ## Platform subdomains (ADR-032)
 - `api.foyr.online` is its own Route 53 zone (`api_domain` in `infra/variables.tf`), delegated with 4 NS records at GoDaddy. `auth.` and `app.` will follow the same pattern.
+- `scripts/founder-key.sh` opens `https://api.foyr.online/founder` by default (ADR-033); change it with `api_domain`.

@@ -90,3 +90,24 @@ func TestStepBars(t *testing.T) {
 		t.Errorf("pending step has no bar: %+v", bars[3])
 	}
 }
+
+func TestSummarizeSurvivesInstantLive(t *testing.T) {
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	d := dep(1, store.StatusLive, now, 0)
+	d.LiveAt = &now // live at the same instant it was created
+	o := summarize([]store.AppDeployment{d}, nil, now)
+	if len(o.Bars) != 1 || o.Bars[0].Height <= 0 {
+		t.Fatalf("bars = %+v", o.Bars)
+	}
+}
+
+func TestSummarizeSaysWhenItIsCapped(t *testing.T) {
+	now := time.Now()
+	var many []store.AppDeployment
+	for i := range 100 {
+		many = append(many, dep(int64(100-i), store.StatusLive, now.Add(-time.Duration(i)*time.Hour), time.Minute))
+	}
+	if o := summarize(many, nil, now); !o.Capped || summarize(many[:5], nil, now).Capped {
+		t.Fatal("Capped must be set exactly when the list hit the limit")
+	}
+}

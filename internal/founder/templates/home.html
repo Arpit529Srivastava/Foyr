@@ -24,10 +24,10 @@
 </style>
 <h1>Welcome back<span>, here is how your deploys are doing.</span></h1>
 <section class="hero">
-<div><p class="dim" style="margin:28px 0 0">Median push to live</p>
+<div><p class="dim" style="margin:28px 0 0">Median push to live{{if .O.Capped}}, last {{.O.Total}} deployments{{end}}</p>
 <p class="big rise">{{if .O.Median}}{{dur .O.Median}}{{else}}-{{end}}</p>
 <div class="stats"><span class="stat"><b>{{.O.LiveApps}}</b>{{if eq .O.LiveApps 1}}app{{else}}apps{{end}} live</span>
-<span class="stat"><b>{{.O.Total}}</b>deployments</span><span class="stat"><b>{{.O.SuccessPct}}%</b>reached live</span>
+<span class="stat"><b>{{.O.Total}}{{if .O.Capped}}+{{end}}</b>deployments</span><span class="stat"><b>{{.O.SuccessPct}}%</b>reached live</span>
 {{if .O.Fastest}}<span class="stat"><b>{{dur .O.Fastest}}</b>fastest</span>{{end}}</div></div>
 <div><div class="chart" role="img" aria-label="Push to live time for recent deployments">
 {{range $i, $b := .O.Bars}}<a class="b-{{.Kind}}" href="/founder/deployments/{{.ID}}" title="{{.Title}}"><i class="grow" style="height:{{.Height}}%;animation-delay:{{delay $i 45}}ms"></i><span>#{{.ID}}</span></a>
