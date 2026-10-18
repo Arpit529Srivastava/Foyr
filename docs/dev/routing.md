@@ -7,7 +7,18 @@ browser ─► https://foyr-hello.apps.foyr.online
              ─► d-4.apps.foyr.internal:3000 (the live task, private network only)
 authproxy ◄── every 3 s: foyrd :9090/internal/routes (bearer token) ── keeps the last good table on errors
 ```
-Decision: ADR-030.
+Decisions: ADR-030 (routing), ADR-031 (load balancer, certificate, DNS, image pipeline).
+
+## In AWS (8b)
+- `https://<slug>.apps.foyr.online` → ALB `foyr-apps` → ECS service `authproxy` (platform subnets) → the app.
+- New authproxy code reaches AWS by merging to `main`: the **Deploy authproxy** workflow builds and deploys it.
+  Run it by hand from the Actions tab (Run workflow) after changing authproxy settings in `infra/`.
+- Until 8c, routes come from `authproxy_static_routes` in `infra/variables.tf`, not from foyrd.
+- Logs: CloudWatch `/foyr/platform`, streams `authproxy/...`.
+
+```bash
+curl -sI https://foyr-hello.apps.foyr.online/
+```
 
 ## Running it locally
 ```bash
@@ -43,6 +54,26 @@ so locally this answers 502 ("This app isn't responding"), which proves the rout
 - Example 2: a bank teller ignores a customer's note saying "approved by the manager".
 - Why: in Phase 1 apps trust `X-Foyr-*` for identity, so visitors must never be able to forge them.
 
+**Load balancer (ALB)**: AWS's public entry point that receives requests and hands them on.
+- Example 1: every `*.apps.foyr.online` request arrives at `foyr-apps` first.
+- Example 2: a hotel reception desk: one door for all guests.
+- Why: apps and authproxy have no public address; something must face the internet and hold the certificate.
+
+**Wildcard certificate**: one TLS certificate valid for every name at one level, `*.apps.foyr.online`.
+- Example 1: covers `foyr-hello.apps.foyr.online` and `todo.apps.foyr.online`.
+- Example 2: does not cover `apps.foyr.online` itself or `a.b.apps.foyr.online`.
+- Why: the padlock for every new app without issuing a certificate per app.
+
+**DNS delegation**: telling the parent zone "another server answers for this subdomain" with NS records.
+- Example 1: GoDaddy holds `foyr.online`; 4 NS records for `apps` send those lookups to Route 53.
+- Example 2: a receptionist forwarding all calls for one department to that department's own phone.
+- Why: AWS can then create the certificate check and load balancer records itself.
+
+**OIDC deploy role**: GitHub proves to AWS which repo and branch a workflow runs on, and gets a 1-hour key.
+- Example 1: a workflow on `main` of Arpit529Srivastava/Foyr can push the authproxy image.
+- Example 2: a pull request, or a fork, gets nothing.
+- Why: no long-lived AWS keys stored in GitHub that could leak.
+
 ## Code map
 | Path | What it does |
 |---|---|
@@ -53,3 +84,6 @@ so locally this answers 502 ("This app isn't responding"), which proves the rout
 | `cmd/authproxy/main.go` | wiring |
 | `cmd/foyrd/internal.go` | `/internal/routes` on the private listener |
 | `internal/db/migrations/004_slugs.sql` | `apps.slug` and backfill |
+| `infra/dns.tf`, `infra/alb.tf`, `infra/authproxy.tf` | zone, certificate, load balancer, authproxy service, security groups |
+| `infra/github.tf` | OIDC provider and the deploy role |
+| `cmd/authproxy/Dockerfile`, `.github/workflows/authproxy-deploy.yml` | image and deploy pipeline |

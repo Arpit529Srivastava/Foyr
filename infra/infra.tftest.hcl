@@ -55,6 +55,39 @@ mock_provider "aws" {
     }
   }
 
+  mock_resource "aws_lb" {
+    defaults = {
+      arn      = "arn:aws:elasticloadbalancing:ap-south-1:123456789012:loadbalancer/app/mock/1"
+      dns_name = "mock.ap-south-1.elb.amazonaws.com"
+      zone_id  = "ZP97RAFLXTNZK"
+    }
+  }
+
+  mock_resource "aws_lb_target_group" {
+    defaults = {
+      arn = "arn:aws:elasticloadbalancing:ap-south-1:123456789012:targetgroup/mock/1"
+    }
+  }
+
+  mock_resource "aws_acm_certificate" {
+    defaults = {
+      arn = "arn:aws:acm:ap-south-1:123456789012:certificate/mock"
+    }
+  }
+
+  mock_data "aws_iam_openid_connect_provider" {
+    defaults = {
+      arn = "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+    }
+  }
+
+  mock_resource "aws_ecr_repository" {
+    defaults = {
+      arn            = "arn:aws:ecr:ap-south-1:123456789012:repository/mock"
+      repository_url = "123456789012.dkr.ecr.ap-south-1.amazonaws.com/mock"
+    }
+  }
+
   mock_resource "aws_sns_topic" {
     defaults = {
       arn = "arn:aws:sns:ap-south-1:123456789012:mock"
@@ -164,7 +197,7 @@ run "build_and_run" {
 
   assert {
     condition     = length(aws_security_group.tenant.ingress) == 0 && aws_vpc_security_group_egress_rule.tenant_all.cidr_ipv4 == "0.0.0.0/0"
-    error_message = "tenant tasks accept no inbound traffic until authproxy exists (ADR-029)"
+    error_message = "tenant inbound rules live in separate rule resources only (ADR-029)"
   }
 
   assert {
@@ -175,5 +208,64 @@ run "build_and_run" {
   assert {
     condition     = contains(aws_ecs_cluster_capacity_providers.main.capacity_providers, "FARGATE") && contains(aws_ecs_cluster_capacity_providers.main.capacity_providers, "FARGATE_SPOT")
     error_message = "cluster must allow FARGATE and FARGATE_SPOT"
+  }
+}
+
+run "front_door" {
+  command = plan
+
+  assert {
+    condition     = aws_lb_listener.https.ssl_policy == "ELBSecurityPolicy-TLS13-1-2-2021-06" && aws_lb.apps.drop_invalid_header_fields
+    error_message = "load balancer must use TLS 1.2+ and drop malformed headers"
+  }
+
+  assert {
+    condition = alltrue([
+      for a in aws_lb_listener.http.default_action : a.type == "redirect" && alltrue([for r in a.redirect : r.protocol == "HTTPS" && r.status_code == "HTTP_301"])
+    ])
+    error_message = "plain HTTP must only redirect to HTTPS"
+  }
+
+  assert {
+    condition     = aws_acm_certificate.apps.domain_name == "*.${var.apps_domain}" && aws_route53_record.apps_wildcard.name == "*.${var.apps_domain}"
+    error_message = "one wildcard certificate and record must cover every app"
+  }
+
+  assert {
+    condition     = aws_vpc_security_group_ingress_rule.tenant_from_authproxy.from_port == 3000 && aws_vpc_security_group_ingress_rule.tenant_from_authproxy.to_port == 3000 && aws_vpc_security_group_ingress_rule.tenant_from_authproxy.cidr_ipv4 == null
+    error_message = "apps may only be reached from authproxy, on port 3000"
+  }
+
+  assert {
+    condition     = aws_vpc_security_group_ingress_rule.authproxy_from_alb.cidr_ipv4 == null && aws_vpc_security_group_egress_rule.alb_to_authproxy.cidr_ipv4 == null
+    error_message = "authproxy may only be reached from the load balancer"
+  }
+
+  assert {
+    condition = alltrue([for n in aws_ecs_service.authproxy.network_configuration : !n.assign_public_ip]) && alltrue([
+      for c in aws_ecs_task_definition.authproxy.runtime_platform : c.cpu_architecture == "ARM64"
+    ])
+    error_message = "authproxy runs on ARM with no public IP (ADR-008)"
+  }
+
+  assert {
+    condition     = !strcontains(aws_ecs_task_definition.authproxy.container_definitions, "FOYR_INTERNAL_TOKEN")
+    error_message = "secrets must never be plain task environment values"
+  }
+
+  assert {
+    condition = alltrue(flatten([
+      for s in data.aws_iam_policy_document.github_trust.statement : [
+        for c in s.condition : c.values == tolist(["repo:Arpit529Srivastava/Foyr:ref:refs/heads/main"]) if c.variable == "token.actions.githubusercontent.com:sub"
+      ]
+    ])) && length(flatten([for s in data.aws_iam_policy_document.github_trust.statement : [for c in s.condition : c if c.variable == "token.actions.githubusercontent.com:sub"]])) == 1
+    error_message = "only workflows on main may assume the deploy role"
+  }
+
+  assert {
+    condition = alltrue([
+      for s in data.aws_iam_policy_document.github_deploy.statement : !contains(s.actions, "iam:PassRole") || length(s.resources) == 1 && !contains(s.resources, "*")
+    ])
+    error_message = "the deploy role may only pass the platform execution role"
   }
 }

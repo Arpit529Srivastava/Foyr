@@ -45,3 +45,16 @@ output "tenant_security_group_id" {
 output "apps_log_group_name" {
   value = aws_cloudwatch_log_group.apps.name
 }
+
+output "apps_name_servers" {
+  description = "Add these as NS records for apps at GoDaddy (ADR-031)."
+  value       = aws_route53_zone.apps.name_servers
+}
+
+output "apps_load_balancer_dns" {
+  value = aws_lb.apps.dns_name
+}
+
+output "github_deploy_role_arn" {
+  value = aws_iam_role.github_deploy.arn
+}
