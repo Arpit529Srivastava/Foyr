@@ -6,4 +6,4 @@
 <td class="n">{{if eq .TargetType "deployment"}}<a href="/founder/deployments/{{.TargetID}}" style="color:var(--a)">deployment #{{.TargetID}}</a>{{else}}<span class="dim">{{.TargetType}} {{.TargetID}}</span>{{end}}</td>
 <td class="n dim">{{if .Actor.Login}}{{.Actor.Login}}{{else}}{{.Actor.Type}}{{end}}</td></tr>
 {{else}}<tr><td colspan="4" class="dim">Nothing recorded yet.</td></tr>{{end}}</table></div></section>
-{{template "endframe"}}{{template "foot"}}{{end}}
+{{template "endframe" .}}{{template "foot"}}{{end}}

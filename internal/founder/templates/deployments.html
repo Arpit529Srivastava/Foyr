@@ -9,4 +9,4 @@
 <td style="min-width:240px"><a href="/founder/deployments/{{.ID}}">{{first .CommitMessage}}</a><br><span class="sha">{{short .CommitSHA}}</span>{{if .FailureReason}} <span class="c-failed" style="font-size:13px">{{.FailureStep}}: {{first .FailureReason}}</span>{{end}}</td>
 <td class="n">{{dur (between .CreatedAt .LiveAt)}}</td><td class="n dim">{{since $.Now .CreatedAt}}{{with .PusherLogin}}<br>by {{.}}{{end}}</td></tr>
 {{else}}<tr><td colspan="5" class="dim">No deployments yet. Push to a connected repository.</td></tr>{{end}}</table></div></section>
-{{template "endframe"}}{{template "foot"}}{{end}}
+{{template "endframe" .}}{{template "foot"}}{{end}}

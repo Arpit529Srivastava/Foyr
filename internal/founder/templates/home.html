@@ -52,4 +52,4 @@
 <td class="n">{{if .LiveDeployment}}<a href="/founder/deployments/{{.LiveDeployment}}">#{{.LiveDeployment}}</a>{{else}}<span class="dim">none</span>{{end}}</td>
 <td class="n dim">{{.FullName}}</td></tr>
 {{else}}<tr><td colspan="4" class="dim">No apps yet. Install the GitHub App on a repository.</td></tr>{{end}}</table></div></section>
-{{template "endframe"}}{{template "foot"}}{{end}}
+{{template "endframe" .}}{{template "foot"}}{{end}}
