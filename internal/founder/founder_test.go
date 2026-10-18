@@ -141,8 +141,8 @@ func TestHomeShowsAppsAndDeployments(t *testing.T) {
 	h := newHandler(key, "live")
 	w := do(h, "GET", "/founder", nil, signIn(t, h))
 	b := w.Body.String()
-	for _, want := range []string{`https://foyr-hello.apps.example.test`, `/founder/deployments/5`, "1m52s", "938473b", "1h ago · octo",
-		"feat: &lt;b&gt;status&lt;/b&gt; card"} {
+	for _, want := range []string{`https://foyr-hello.apps.example.test`, `/founder/deployments/5`, "1m52s", "foyr-hello, 1h ago",
+		"#5 feat: &lt;b&gt;status&lt;/b&gt; card", "Median push to live", "100%</b>reached live", "Build image", "Latest deployment"} {
 		if !strings.Contains(b, want) {
 			t.Errorf("home missing %q", want)
 		}

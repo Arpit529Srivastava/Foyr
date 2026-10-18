@@ -1,9 +1,12 @@
 {{define "login.html"}}{{template "head" .}}
-<p class="k">Foyr · founder</p><h1>Sign in</h1>
-<p class="dim">Paste the founder key. <span class="m">scripts/founder-key.sh</span> copies it to your clipboard.</p>
-{{if .Error}}<p class="fail">{{.Error}}</p>{{end}}
-<form method="post" action="/founder/login" style="display:flex;gap:8px;max-width:520px;margin-top:16px">
-<input name="key" type="password" autocomplete="current-password" required autofocus aria-label="Founder key"
- style="flex:1;background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;font:inherit">
-<button style="color:var(--text)">Sign in</button></form>
+<main style="min-height:80vh;display:grid;place-items:center">
+<div class="card rise" style="width:100%;max-width:440px;padding:32px">
+<div class="brand" style="margin-bottom:28px"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true" shape-rendering="crispEdges"><rect width="32" height="32" rx="7" fill="#191919"/><g fill="#eee" transform="translate(4 4) scale(1.5)"><rect x="2" y="1" width="12" height="2"/><rect x="2" y="3" width="2" height="12"/><rect x="12" y="3" width="2" height="12"/><rect x="5" y="4" width="4" height="11" fill="#f5a524"/></g></svg>foyr</div>
+<h1 style="font-size:28px">Founder sign in</h1>
+<p class="dim" style="margin:8px 0 22px">Paste your founder key. Run <span class="sha">scripts/founder-key.sh</span> to copy it.</p>
+{{if .Error}}<p class="fail" style="margin:0 0 16px">{{.Error}}</p>{{end}}
+<form method="post" action="/founder/login" style="display:grid;gap:12px">
+<input name="key" type="password" autocomplete="current-password" required autofocus aria-label="Founder key" placeholder="Founder key"
+ style="background:#000;border:1px solid var(--line);color:var(--text);border-radius:14px;padding:13px 14px;font:inherit">
+<button style="background:var(--text);color:#000;border:0;font-weight:600;padding:12px">Sign in</button></form></div></main>
 {{template "foot"}}{{end}}

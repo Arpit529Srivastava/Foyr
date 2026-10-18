@@ -59,6 +59,8 @@ var pages = template.Must(template.New("").Funcs(template.FuncMap{
 	"active":  active,
 	"between": between,
 	"clock":   func(t time.Time) string { return t.UTC().Format("Jan 2 15:04:05 UTC") },
+	"delay":   func(i, step int) int { return min(i*step, 1200) },
+	"add":     func(a, b int) int { return a + b },
 }).ParseFS(files, "templates/*.html"))
 
 // Register adds the routes to mux.
@@ -104,7 +106,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	recent, err := h.Data.RecentDeployments(r.Context(), 30)
+	recent, err := h.Data.RecentDeployments(r.Context(), 100)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -113,8 +115,21 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	for _, d := range recent {
 		refresh = refresh || h.moving(d.Status, d.CreatedAt)
 	}
+	var latest *store.AppDeployment
+	var pipeline []StepBar
+	if len(recent) > 0 {
+		latest = &recent[0]
+		steps, err := h.Data.Steps(r.Context(), latest.ID)
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		pipeline = stepBars(steps, h.now())
+	}
 	h.render(w, r, http.StatusOK, "home.html", map[string]any{
-		"Apps": apps, "Recent": recent, "Domain": h.AppsDomain, "Refresh": refresh, "Now": h.now(),
+		"Apps": apps, "Recent": recent[:min(len(recent), 8)], "Domain": h.AppsDomain, "Refresh": refresh, "Now": h.now(),
+		"O": summarize(recent, apps, h.now()), "Latest": latest, "Pipeline": pipeline,
+		"Tab": "home", "LatestID": latestID(latest), "NavLabel": "Latest deployment",
 	})
 }
 
@@ -186,8 +201,9 @@ func (h *Handler) deployment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.render(w, r, http.StatusOK, "deployment.html", map[string]any{
-		"D": d, "App": app, "Steps": steps, "Events": events, "Audit": audit, "Domain": h.AppsDomain,
+		"D": d, "App": app, "Steps": stepBars(steps, h.now()), "Events": events, "Audit": audit, "Domain": h.AppsDomain,
 		"Refresh": h.moving(d.Status, d.CreatedAt), "Now": h.now(),
+		"Tab": "deployment", "LatestID": d.ID, "NavLabel": "Deployment #" + strconv.FormatInt(d.ID, 10),
 	})
 }
 
@@ -262,6 +278,13 @@ func since(now, t time.Time) string {
 	default:
 		return strconv.Itoa(int(d.Hours()/24)) + "d ago"
 	}
+}
+
+func latestID(d *store.AppDeployment) int64 {
+	if d == nil {
+		return 0
+	}
+	return d.ID
 }
 
 func firstLine(s string) string {

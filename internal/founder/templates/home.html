@@ -1,16 +1,55 @@
-{{define "home.html"}}{{template "head" .}}
-<header><div><p class="k">Foyr · founder</p><h1>Apps and deployments</h1></div>
-<form method="post" action="/founder/logout"><button>Sign out</button></form></header>
-<h2>Apps</h2><div class="card"><table><tr><th>App</th><th>Address</th><th>Live</th><th>Repo</th></tr>
-{{range .Apps}}<tr><td>{{.Slug}}</td>
-<td class="m">{{if and $.Domain .LiveDeployment}}<a href="https://{{.Slug}}.{{$.Domain}}" rel="noreferrer">{{.Slug}}.{{$.Domain}}</a>{{else}}<span class="dim">not live</span>{{end}}</td>
-<td>{{if .LiveDeployment}}<a href="/founder/deployments/{{.LiveDeployment}}">#{{.LiveDeployment}}</a>{{else}}<span class="dim">-</span>{{end}}</td>
-<td class="dim">{{.FullName}}</td></tr>
-{{else}}<tr><td colspan="4" class="dim">No apps yet. Install the GitHub App on a repo.</td></tr>{{end}}</table></div>
-<h2>Recent deployments{{if .Refresh}} · refreshing every 5 s{{end}}</h2>
-<div class="card"><table><tr><th>#</th><th>App</th><th>Status</th><th>Commit</th><th>Push to live</th><th>Pushed</th></tr>
-{{range .Recent}}<tr><td><a href="/founder/deployments/{{.ID}}">#{{.ID}}</a></td><td>{{.Slug}}</td><td>{{template "status" .Status}}</td>
-<td class="wrap"><span class="m dim">{{short .CommitSHA}}</span> {{first .CommitMessage}}{{if .FailureReason}}<br><span class="s-failed">{{.FailureStep}}: {{first .FailureReason}}</span>{{end}}</td>
-<td class="m">{{dur (between .CreatedAt .LiveAt)}}</td><td class="dim">{{since $.Now .CreatedAt}}{{if .PusherLogin}} · {{.PusherLogin}}{{end}}</td></tr>
-{{else}}<tr><td colspan="6" class="dim">No deployments yet. Push to a connected repo.</td></tr>{{end}}</table></div>
+{{define "home.html"}}{{template "head" .}}{{template "nav" .}}
+<style>
+.hero{display:grid;grid-template-columns:minmax(260px,1fr) 2fr;gap:28px;align-items:end;margin-bottom:14px}
+.big{font-size:clamp(56px,9vw,104px);font-weight:600;letter-spacing:-.055em;line-height:.9;margin:10px 0 18px}
+.stats{display:flex;flex-wrap:wrap;gap:8px}.stat{border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 14px;font-size:14px;color:var(--dim)}
+.stat b{color:var(--text);font-weight:600;margin-right:4px}
+.chart{height:220px;display:flex;align-items:flex-end;gap:8px;padding-top:28px;border-bottom:1px solid var(--line);position:relative}
+.chart a{flex:1;min-width:10px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px}
+.chart a i{display:block;width:100%;max-width:46px;border-radius:12px 12px 4px 4px}
+.b-live i{background:linear-gradient(180deg,var(--a2),var(--a))}.b-live:hover i{filter:brightness(1.12)}.b-failed i{background:var(--bad);opacity:.8}
+.b-running i{background:repeating-linear-gradient(135deg,#2a2a2a 0 6px,#3a3a3a 6px 12px)}
+.chart a span{font-size:11.5px;color:var(--faint)}.chart a:hover span{color:var(--text)}
+.legend{display:flex;gap:16px;font-size:12.5px;color:var(--dim);margin-top:12px}.legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.row3{grid-template-columns:1.15fr 1fr 1.15fr}
+.pipe{display:grid;gap:12px}.pipe div{display:grid;grid-template-columns:110px 1fr 52px;gap:12px;align-items:center;font-size:13.5px}
+.track{height:12px;background:var(--card);border-radius:99px;position:relative}.track i{position:absolute;top:0;bottom:0;border-radius:99px;background:var(--a)}
+.track i.s-failed{background:var(--bad)}.track i.s-running{background:repeating-linear-gradient(135deg,var(--a) 0 6px,var(--a2) 6px 12px)}
+.heat{display:grid;grid-template-columns:44px repeat(7,1fr);gap:5px;font-size:11.5px;color:var(--faint);align-items:center}
+.heat i{aspect-ratio:1.5;border-radius:7px;background:var(--card)}.heat .l1{background:#4a3410}.heat .l2{background:#8a5c12}.heat .l3{background:var(--a)}.heat .l4{background:var(--a2)}
+.heat span{text-align:center}
+.feed a{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:11px 0;border-top:1px solid var(--line)}.feed a:first-child{border-top:0;padding-top:0}
+.feed .t{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.feed .m{font-size:13px;color:var(--dim)}
+@media (max-width:900px){.hero,.row3{grid-template-columns:1fr}.chart{height:170px}}
+</style>
+<h1>Welcome back<span>, here is how your deploys are doing.</span></h1>
+<section class="hero">
+<div><p class="dim" style="margin:28px 0 0">Median push to live</p>
+<p class="big rise">{{if .O.Median}}{{dur .O.Median}}{{else}}-{{end}}</p>
+<div class="stats"><span class="stat"><b>{{.O.LiveApps}}</b>{{if eq .O.LiveApps 1}}app{{else}}apps{{end}} live</span>
+<span class="stat"><b>{{.O.Total}}</b>deployments</span><span class="stat"><b>{{.O.SuccessPct}}%</b>reached live</span>
+{{if .O.Fastest}}<span class="stat"><b>{{dur .O.Fastest}}</b>fastest</span>{{end}}</div></div>
+<div><div class="chart" role="img" aria-label="Push to live time for recent deployments">
+{{range $i, $b := .O.Bars}}<a class="b-{{.Kind}}" href="/founder/deployments/{{.ID}}" title="{{.Title}}"><i class="grow" style="height:{{.Height}}%;animation-delay:{{delay $i 45}}ms"></i><span>#{{.ID}}</span></a>
+{{else}}<p class="dim" style="margin:auto">Push to a connected repo to see deployments here.</p>{{end}}</div>
+<div class="legend"><span><i style="background:var(--a)"></i>Push to live</span><span><i style="background:var(--bad)"></i>Failed</span><span><i style="background:#3a3a3a"></i>Running or never deployed</span></div></div>
+</section>
+<section class="grid row3 rise" style="animation-delay:150ms">
+<div class="card"><h2>Latest pipeline{{with .Latest}}<small><a href="/founder/deployments/{{.ID}}">#{{.ID}} {{.Slug}}</a></small>{{end}}</h2>
+{{if .Pipeline}}<div class="pipe">{{range $i, $p := .Pipeline}}<div><span>{{.Name}}</span><span class="track"><i class="sweep s-{{.Status}}" style="left:{{.Left}}%;width:{{.Width}}%;animation-delay:{{delay $i 90}}ms"></i></span><span class="dim" style="text-align:right">{{dur .Duration}}</span></div>{{end}}</div>
+{{else}}<p class="dim">Steps show up here once a build starts.</p>{{end}}</div>
+<div class="card"><h2>Deploys by time<small>last 7 days, IST</small></h2>
+<div class="heat"><span></span>{{range .O.Days}}<span>{{.}}</span>{{end}}
+{{range $r, $row := .O.Heat}}<span style="text-align:left">{{index $.O.Blocks $r}}</span>{{range $c, $cell := $row}}<i class="pop l{{.Level}}" title="{{.Title}}" style="animation-delay:{{delay (add $r $c) 35}}ms"></i>{{end}}{{end}}</div></div>
+<div class="card"><h2>Recent deployments{{if .Refresh}}<small>updating live</small>{{end}}</h2><div class="feed">
+{{range .Recent}}<a href="/founder/deployments/{{.ID}}"><span class="t">#{{.ID}} {{first .CommitMessage}}</span>{{template "status" .Status}}
+<span class="m">{{.Slug}}, {{since $.Now .CreatedAt}}</span><span class="m" style="text-align:right">{{if .LiveAt}}{{dur (between .CreatedAt .LiveAt)}}{{end}}</span></a>
+{{else}}<p class="dim">No deployments yet.</p>{{end}}</div></div>
+</section>
+<section class="card rise" style="margin-top:14px;animation-delay:250ms"><h2>Apps</h2><div class="scroll"><table><tr><th>App</th><th>Address</th><th>Live deployment</th><th>Repository</th></tr>
+{{range .Apps}}<tr><td class="n">{{.Slug}}</td>
+<td class="n">{{if and $.Domain .LiveDeployment}}<a href="https://{{.Slug}}.{{$.Domain}}" rel="noreferrer" style="color:var(--a)">{{.Slug}}.{{$.Domain}}</a>{{else}}<span class="dim">not live</span>{{end}}</td>
+<td class="n">{{if .LiveDeployment}}<a href="/founder/deployments/{{.LiveDeployment}}">#{{.LiveDeployment}}</a>{{else}}<span class="dim">none</span>{{end}}</td>
+<td class="n dim">{{.FullName}}</td></tr>
+{{else}}<tr><td colspan="4" class="dim">No apps yet. Install the GitHub App on a repository.</td></tr>{{end}}</table></div></section>
 {{template "foot"}}{{end}}
