@@ -503,3 +503,26 @@ func TestListDeploymentsPages(t *testing.T) {
 		t.Fatalf("second page = %+v", next)
 	}
 }
+
+func TestListInstallations(t *testing.T) {
+	s := newStore(t)
+	user := store.GitHubUser(42, "octo-dev")
+	for _, c := range []store.InstallationChange{
+		{Action: "created", InstallationID: 2, AccountLogin: "zeta-co", Actor: user},
+		{Action: "created", InstallationID: 1, AccountLogin: "Acme", Actor: user},
+		{Action: "created", InstallationID: 3, AccountLogin: "gone", Actor: user},
+		{Action: "deleted", InstallationID: 3, AccountLogin: "gone", Actor: user},
+	} {
+		if err := s.SyncInstallation(ctx, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.ListInstallations(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Removed accounts are left out; the rest sort by login, ignoring case.
+	if len(got) != 2 || got[0].Login != "Acme" || got[0].ID != 1 || got[1].Login != "zeta-co" || got[0].CreatedAt.IsZero() {
+		t.Fatalf("installations = %+v", got)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Arpit529Srivastava/Foyr/internal/store"
+	"github.com/Arpit529Srivastava/Foyr/internal/ui"
 )
 
 // ist is the founder's time zone, for the activity grid; a fixed offset needs no tzdata in the image.
@@ -40,12 +41,6 @@ type Cell struct {
 	Count int
 	Level int // 0 to 4
 	Title string
-}
-
-// StepBar places one build step on the deployment's timeline, in percent.
-type StepBar struct {
-	store.Step
-	Left, Width float64
 }
 
 // summarize works out the home page numbers; recent is newest first.
@@ -132,47 +127,15 @@ func summarize(recent []store.AppDeployment, apps []store.App, now time.Time) Ov
 	return o
 }
 
-// stepBars lays steps on one timeline from the first start to the last finish (or now, while running).
-func stepBars(steps []store.Step, now time.Time) []StepBar {
-	var first, last time.Time
-	for _, s := range steps {
-		if s.StartedAt == nil {
-			continue
-		}
-		end := now
-		if s.FinishedAt != nil {
-			end = *s.FinishedAt
-		}
-		if first.IsZero() || s.StartedAt.Before(first) {
-			first = *s.StartedAt
-		}
-		last = maxTime(last, end)
-	}
-	span := last.Sub(first)
-	bars := make([]StepBar, len(steps))
-	for i, s := range steps {
-		bars[i].Step = s
-		if s.StartedAt == nil || span <= 0 {
-			continue
-		}
-		end := now
-		if s.FinishedAt != nil {
-			end = *s.FinishedAt
-		}
-		bars[i].Left = pct(s.StartedAt.Sub(first), span)
-		bars[i].Width = max(pct(end.Sub(*s.StartedAt), span), 0.6)
-		if end.Equal(*s.StartedAt) {
-			bars[i].Width = 0.6
-		}
-	}
-	return bars
-}
+// Shared helpers, under the names the founder templates and tests already use.
+var (
+	fmtDur    = ui.Dur
+	between   = ui.Between
+	since     = ui.Since
+	firstLine = ui.FirstLine
+	active    = ui.Active
+	stepBars  = ui.StepBars
+)
 
-func pct(d, of time.Duration) float64 { return float64(int(float64(d)/float64(of)*1000)) / 10 }
-
-func maxTime(a, b time.Time) time.Time {
-	if b.After(a) {
-		return b
-	}
-	return a
-}
+// StepBar is one step on a deployment's timeline.
+type StepBar = ui.StepBar

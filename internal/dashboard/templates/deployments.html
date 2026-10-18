@@ -1,0 +1,10 @@
+{{define "deployments.html"}}{{template "head" .}}{{template "frame" .}}{{template "apphead" .}}
+<style>.pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}.pills a{padding:5px 12px;border-radius:999px;border:1px solid var(--line);font-size:13px;color:var(--dim)}
+.pills a.on{background:var(--raise);color:var(--text);border-color:var(--line2)}</style>
+{{$base := printf "/dashboard/%s/%s/deployments" .S.Account.Login .S.App.Slug}}
+<div class="pills"><a href="{{$base}}"{{if not .Filter}} class="on"{{end}}>All</a><a href="{{$base}}?status=live"{{if eq .Filter "live"}} class="on"{{end}}>Live</a>
+<a href="{{$base}}?status=building"{{if eq .Filter "building"}} class="on"{{end}}>In progress</a><a href="{{$base}}?status=failed"{{if eq .Filter "failed"}} class="on"{{end}}>Failed</a>
+<a href="{{$base}}?status=superseded"{{if eq .Filter "superseded"}} class="on"{{end}}>Replaced</a></div>
+<section class="card">{{if .Rows}}<div class="list">{{range $i, $r := .Rows}}{{template "deprow" (row $i $.S.Account.Login $r $.Now false)}}{{end}}</div>
+{{else}}<div class="empty"><h3>Nothing here</h3><p>{{if .Filter}}No deployments with this status. <a href="{{$base}}" style="color:var(--a2)">Show all</a>{{else}}Push to {{.S.App.DefaultBranch}} to make the first one.{{end}}</p></div>{{end}}</section>
+{{template "endframe" .}}{{template "foot"}}{{end}}

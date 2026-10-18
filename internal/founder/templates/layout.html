@@ -67,6 +67,7 @@ aside .brand{margin:0;padding:0 8px}.tag{font-size:11.5px;font-weight:500;color:
 <a href="/founder"{{if eq .Section "overview"}} class="on" aria-current="page"{{end}}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>Overview</a>
 <a href="/founder/deployments"{{if eq .Section "deployments"}} class="on" aria-current="page"{{end}}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 18 9 5 9-5" opacity=".5"/></svg>Deployments</a>
 <a href="/founder/activity"{{if eq .Section "activity"}} class="on" aria-current="page"{{end}}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Activity</a>
+<a href="/dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Customer view</a>
 <p class="g">Apps <span>{{len .Apps}}</span></p><div class="apps">
 {{range .Apps}}<a href="/founder/deployments?app={{.ID}}"{{if and $.App (eq $.App.ID .ID)}} class="on"{{end}} title="{{.FullName}}"><i class="ad{{if .LiveDeployment}} up{{end}}"></i>{{.Slug}}</a>
 {{else}}<p class="none">No apps yet</p>{{end}}</div></nav>

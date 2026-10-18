@@ -237,3 +237,14 @@ func TestFounderPageIsOffWithoutAKey(t *testing.T) {
 		t.Fatalf("GET /founder with a key = %d", rec.Code)
 	}
 }
+
+func TestDashboardNeedsTheFounderSignIn(t *testing.T) {
+	e := setup(t)
+	for _, p := range []string{"/dashboard", "/dashboard/octo-dev", "/dashboard/octo-dev/foyr-hello/settings"} {
+		rec := httptest.NewRecorder()
+		e.h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, p, nil))
+		if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/founder" {
+			t.Errorf("GET %s signed out = %d %q, want a redirect to /founder", p, rec.Code, rec.Header().Get("Location"))
+		}
+	}
+}
