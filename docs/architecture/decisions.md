@@ -432,3 +432,16 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** Watching deploys in a browser instead of CloudWatch, and real screenshots for the YC application, without building accounts before magic-link login exists.
 
 **Consequences:** Anyone with the key sees every app's deployments; it is for the founder only and goes away when the Phase 1 dashboard has real logins. Rotating the key (signs everyone out): delete `~/.config/foyr/founder-key`, run `scripts/platform-secrets.sh`, then the Deploy platform workflow. Sessions can't be revoked one by one; rotation is the kill switch. A second factor (TOTP) is the next step if the page ever shows more than deploy metadata.
+
+## ADR-034: Customer dashboard served by foyrd
+**Date:** 2026-10-19 · **Status:** Accepted · **Builds on:** ADR-033 · **Replaces:** the Next.js `web` service in system-design.md, for now
+
+**Decision:**
+- The customer dashboard is server-rendered Go templates in foyrd (`internal/dashboard`), at `/dashboard/<account>/<app>/<tab>`, not a separate Next.js service. It reuses the founder page's security headers and design tokens (`internal/ui`).
+- Pages: an account page (apps as cards, recent deployments) with an account switcher and an app search box (⌘K), and per app the tabs Overview, Deployments, Logs, Metrics, Access, Environment, Domains and Settings. Overview, Deployments (with a status filter and a deployment page that explains failures in plain words), Domains and Settings show real data. Logs, Metrics, Access and Environment show clearly labeled sample data until their features exist (spec: docs/superpowers/specs/2026-10-19-deploy-anything-design.md).
+- Every lookup is scoped: an app is found only inside its account (`installation_id`), and a deployment only inside its app, so another account's ids answer 404.
+- Until magic-link login exists, the dashboard borrows the founder sign-in (`Allowed` = founder session) and the founder can open every account. Login replaces `Allowed` with the customer's session and limits the switcher to their own accounts.
+
+**Why:** One language, one deploy, and the security work already done; it ships the UI in days, which matters before the YC deadline. It can move to a client-side app later if the dashboard needs heavy client state.
+
+**Consequences:** The `web` ECR repository stays unused for now. Dashboard changes deploy with foyrd.

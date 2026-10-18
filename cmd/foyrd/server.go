@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Arpit529Srivastava/Foyr/internal/config"
+	"github.com/Arpit529Srivastava/Foyr/internal/dashboard"
 	"github.com/Arpit529Srivastava/Foyr/internal/founder"
 	"github.com/Arpit529Srivastava/Foyr/internal/github"
 	"github.com/Arpit529Srivastava/Foyr/internal/health"
@@ -19,7 +20,10 @@ import (
 func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", health.Handler)
-	(&founder.Handler{Data: st, Key: cfg.FounderKey, AppsDomain: cfg.AppsDomain}).Register(mux)
+	fh := &founder.Handler{Data: st, Key: cfg.FounderKey, AppsDomain: cfg.AppsDomain}
+	fh.Register(mux)
+	// The customer dashboard borrows the founder sign-in until customer login exists.
+	(&dashboard.Handler{Data: st, Allowed: fh.SignedIn, SignIn: "/founder", AppsDomain: cfg.AppsDomain}).Register(mux)
 	mux.Handle("POST /webhooks/github", &github.Handler{
 		Secret:    cfg.GitHubWebhookSecret,
 		OnPush:    onPush(st),

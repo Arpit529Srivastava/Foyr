@@ -7,7 +7,6 @@ import (
 	"crypto/subtle"
 	"embed"
 	"errors"
-	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
 	"github.com/Arpit529Srivastava/Foyr/internal/store"
+	"github.com/Arpit529Srivastava/Foyr/internal/ui"
 )
 
 // CookieName is host-only and HTTPS-only by the __Host- prefix rules.
@@ -87,6 +87,9 @@ func (h *Handler) now() time.Time {
 }
 
 func (h *Handler) enabled() bool { return len(h.Key) >= MinKeyLen }
+
+// SignedIn reports whether r carries a valid founder session, for other pages that borrow this sign-in.
+func (h *Handler) SignedIn(r *http.Request) bool { return h.enabled() && h.signedIn(r) }
 
 func (h *Handler) signedIn(r *http.Request) bool {
 	c, err := r.Cookie(CookieName)
@@ -312,18 +315,7 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request, name, section str
 }
 
 func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, name string, data map[string]any) {
-	hd := w.Header()
-	hd.Set("Content-Type", "text/html; charset=utf-8")
-	hd.Set("Cache-Control", "no-store")
-	nonce := newNonce()
-	data["Nonce"] = nonce
-	hd.Set("Content-Security-Policy", "default-src 'none'; script-src 'nonce-"+nonce+"'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
-	hd.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-	hd.Set("X-Frame-Options", "DENY")
-	hd.Set("Cross-Origin-Opener-Policy", "same-origin")
-	hd.Set("X-Content-Type-Options", "nosniff")
-	hd.Set("Referrer-Policy", "same-origin") // "no-referrer" makes browsers send Origin: null on our own forms
-	hd.Set("X-Robots-Tag", "noindex, nofollow")
+	data["Nonce"] = ui.SecureHeaders(w)
 	w.WriteHeader(status)
 	if err := pages.ExecuteTemplate(w, name, data); err != nil {
 		obs.Logger(r.Context()).Error("founder page render failed", "page", name, "err", err)
@@ -341,56 +333,4 @@ const RefreshFor = 30 * time.Minute
 // moving reports whether to refresh: still running and recent, since old ones can be stuck from before deploys existed.
 func (h *Handler) moving(status string, created time.Time) bool {
 	return active(status) && h.now().Sub(created) < RefreshFor
-}
-
-// active reports whether a deployment's status is still changing.
-func active(status string) bool {
-	switch status {
-	case store.StatusQueued, store.StatusBuilding, store.StatusBuilt, store.StatusDeploying:
-		return true
-	}
-	return false
-}
-
-// fmtDur prints 1m52s, 850ms or 3h04m.
-func fmtDur(d time.Duration) string {
-	switch {
-	case d <= 0:
-		return "-"
-	case d < time.Second:
-		return strconv.FormatInt(d.Milliseconds(), 10) + "ms"
-	case d < time.Hour:
-		return strings.Replace(d.Round(time.Second).String(), "m0s", "m", 1)
-	default:
-		d = d.Round(time.Minute)
-		return fmt.Sprintf("%dh%02dm", int(d.Hours()), int(d.Minutes())%60)
-	}
-}
-
-// between is the time from a to b, or 0 when b is missing.
-func between(a time.Time, b *time.Time) time.Duration {
-	if b == nil {
-		return 0
-	}
-	return b.Sub(a)
-}
-
-// since prints how long ago t was relative to now.
-func since(now, t time.Time) string {
-	d := now.Sub(t)
-	switch {
-	case d < time.Minute:
-		return "just now"
-	case d < time.Hour:
-		return strconv.Itoa(int(d.Minutes())) + "m ago"
-	case d < 48*time.Hour:
-		return strconv.Itoa(int(d.Hours())) + "h ago"
-	default:
-		return strconv.Itoa(int(d.Hours()/24)) + "d ago"
-	}
-}
-
-func firstLine(s string) string {
-	line, _, _ := strings.Cut(s, "\n")
-	return line
 }

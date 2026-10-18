@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -140,4 +141,26 @@ func assignSlug(ctx context.Context, q querier, appID int64, fullName string) er
 			WHERE NOT EXISTS (SELECT 1 FROM apps WHERE slug = c) ORDER BY n LIMIT 1)
 		WHERE id = $1 AND slug IS NULL`, appID, candidates)
 	return err
+}
+
+// Installation is one GitHub account that installed the Foyr app.
+type Installation struct {
+	ID        int64
+	Login     string
+	Suspended bool
+	CreatedAt time.Time
+}
+
+// ListInstallations returns the accounts still connected, by login.
+func (s *Store) ListInstallations(ctx context.Context) ([]Installation, error) {
+	rows, err := s.Pool.Query(ctx, `SELECT id, account_login, suspended_at IS NOT NULL, created_at FROM installations
+		WHERE removed_at IS NULL ORDER BY lower(account_login), id`)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (Installation, error) {
+		var i Installation
+		err := r.Scan(&i.ID, &i.Login, &i.Suspended, &i.CreatedAt)
+		return i, err
+	})
 }

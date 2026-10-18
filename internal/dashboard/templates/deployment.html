@@ -1,0 +1,30 @@
+{{define "deployment.html"}}{{template "head" .}}{{template "frame" .}}{{template "apphead" .}}
+<style>.tl{list-style:none;margin:0;padding:0;display:grid;gap:0}.tl li{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:12px;padding:8px 0;font-size:13.5px;position:relative}
+.tl li::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--line2);margin:6px 0 0 4px}
+.tl li::after{content:"";position:absolute;left:8px;top:22px;bottom:-8px;width:1px;background:var(--line)}.tl li:last-child::after{display:none}
+.tl li.c-live::before,.tl li.c-succeeded::before{background:var(--ok)}.tl li.c-failed::before{background:var(--bad)}
+.tl small{color:var(--faint)}
+.log{background:#050505;border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;font:12.5px/1.7 var(--mono);color:var(--dim);overflow-x:auto;white-space:pre}</style>
+{{$d := .D}}
+<div class="head" style="margin-top:-6px"><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><a class="dim" href="/dashboard/{{.S.Account.Login}}/{{.S.App.Slug}}/deployments">Deployments</a><span class="faint">/</span><b style="font-size:18px;font-weight:550">#{{$d.ID}}</b>{{template "status" $d.Status}}{{if .Current}}<span class="badge">Current</span>{{end}}</div>
+<div class="acts"><button disabled title="Arrives with rollback">Redeploy</button><button disabled title="Arrives with rollback">Roll back to this</button></div></div>
+<div class="stack">
+{{if eq $d.Status "failed" "canceled"}}<div class="fail rise"><b>Failed{{with $d.FailureStep}} at {{.}}{{end}}</b>{{with $d.FailureReason}}<pre>{{.}}</pre>{{end}}
+{{with .Hint}}<div class="tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3Z"/></svg><span>{{.}}</span></div>{{end}}</div>{{end}}
+<section class="card"><dl class="facts">
+<div style="grid-column:1/-1"><dt>Commit</dt><dd style="white-space:normal">{{first $d.CommitMessage}}</dd></div>
+<div><dt>Source</dt><dd><span class="sha">{{$d.Branch}} {{short $d.CommitSHA}}</span></dd></div>
+<div><dt>Pushed by</dt><dd>{{or $d.PusherLogin "-"}}</dd></div>
+<div><dt>Started</dt><dd>{{clock $d.CreatedAt}}</dd></div>
+<div><dt>Push to live</dt><dd>{{if $d.LiveAt}}{{dur (between $d.CreatedAt $d.LiveAt)}}{{else}}-{{end}}</dd></div>
+<div><dt>Trigger</dt><dd style="text-transform:capitalize">{{$d.Trigger}}</dd></div>
+{{with $d.CommitURL}}<div><dt>On GitHub</dt><dd><a href="{{.}}" style="color:var(--a2)">View commit</a></dd></div>{{end}}</dl></section>
+<section class="card"><h2>Build and start <small>{{if $d.FinishedAt}}{{dur (between $d.CreatedAt $d.FinishedAt)}} in total{{end}}</small></h2>
+<div class="steps">{{range $i, $s := .Steps}}<div class="step s-{{.Status}}"><span class="n">{{.Name}}</span><span class="bar"><span class="sweep" style="left:{{.Left}}%;width:{{.Width}}%;animation-delay:{{delay $i 90}}ms"></span></span><span class="d">{{dur .Duration}}</span></div>
+{{else}}<p class="dim" style="margin:0">Waiting for a build worker.</p>{{end}}</div></section>
+<div class="stack two">
+<section class="card"><h2>Timeline</h2>{{if .Events}}<ol class="tl">{{range .Events}}<li class="c-{{.ToStatus}}"><span><b style="font-weight:500;text-transform:capitalize">{{.ToStatus}}</b>{{with .Message}} <span class="dim">{{.}}</span>{{end}}</span><small>{{clock .OccurredAt}}</small></li>{{end}}</ol>
+{{else}}<p class="dim" style="margin:0">No events yet.</p>{{end}}</section>
+<section class="card"><h2>Build log <small>Full log soon</small></h2>
+<div class="log">{{with $d.FailureReason}}{{.}}{{else}}The full build and runtime log will stream here, line by line.{{end}}</div></section></div>
+</div>{{template "endframe" .}}{{template "foot"}}{{end}}

@@ -4,7 +4,6 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"net"
 	"net/http"
@@ -147,11 +146,4 @@ func sameOrigin(r *http.Request) bool {
 	}
 	u, err := url.Parse(o)
 	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && strings.EqualFold(u.Host, r.Host)
-}
-
-// newNonce returns a fresh value for the page's one allowed script.
-func newNonce() string {
-	b := make([]byte, 18)
-	_, _ = rand.Read(b)
-	return base64.RawURLEncoding.EncodeToString(b)
 }

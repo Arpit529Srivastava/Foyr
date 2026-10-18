@@ -1,0 +1,167 @@
+{{define "head"}}<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">{{if .Refresh}}<meta http-equiv="refresh" content="5">{{end}}
+<title>{{if .S.App}}{{.S.App.Slug}} · {{end}}{{with .S.Account.Login}}{{.}} · {{end}}Foyr</title><style>
+:root{--bg:#000;--side:#0a0a0a;--panel:#111;--card:#191919;--raise:#222;--line:#2a2a2a;--line2:#3d3d3d;--text:#eee;--dim:#a3a3a3;--faint:#767676;
+--a:#f5a524;--a2:#ffd27a;--a3:#2b1f0a;--ok:#4ade80;--bad:#e5484d;--r-lg:20px;--r:14px;--r-sm:999px;--ease:cubic-bezier(0,0,.2,1);
+--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+*{box-sizing:border-box}html{background:var(--bg)}
+body{margin:0;color:var(--text);font:14.5px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-feature-settings:"cv11" 1;
+font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;background:var(--bg);min-height:100vh}
+a{color:inherit;text-decoration:none}a:hover{color:var(--a2)}:focus-visible{outline:2px solid var(--a);outline-offset:2px;border-radius:6px}::selection{background:#f5a52455}
+button,.btn{font:inherit;font-size:13.5px;cursor:pointer;border-radius:10px;padding:7px 14px;border:1px solid var(--line);background:var(--panel);color:var(--text);display:inline-flex;align-items:center;gap:8px;white-space:nowrap;transition:border-color .15s,background .15s}
+button:hover,.btn:hover{border-color:var(--line2);color:var(--text)}.btn svg,button svg{width:15px;height:15px}
+.btn.primary{background:var(--a);border-color:var(--a);color:#160e00;font-weight:600}.btn.primary:hover{background:var(--a2);border-color:var(--a2);color:#160e00}
+button:disabled,.btn[aria-disabled]{opacity:.45;cursor:not-allowed}
+input,select{font:inherit;font-size:13.5px;background:var(--bg);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:8px 12px;min-width:0}
+input:disabled,select:disabled{opacity:.6}
+.dim{color:var(--dim)}.faint{color:var(--faint)}.sha{font-family:var(--mono);font-size:12.5px;color:var(--dim)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px 2px 8px;border-radius:var(--r-sm);font-size:12.5px;background:var(--raise);color:var(--dim);white-space:nowrap;text-transform:capitalize}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.c-live,.c-succeeded{color:var(--ok)}.c-failed,.c-canceled{color:var(--bad)}.c-queued,.c-building,.c-built,.c-deploying,.c-running{color:var(--a)}
+.c-queued::before,.c-building::before,.c-built::before,.c-deploying::before,.c-running::before{animation:pulse 1.6s cubic-bezier(.4,0,.2,1) infinite}
+.c-superseded,.c-skipped,.c-pending{color:var(--faint)}
+.badge{font-size:11.5px;font-weight:500;color:var(--a);border:1px solid #f5a52440;background:#f5a5240f;border-radius:6px;padding:1px 7px;white-space:nowrap}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px;min-width:0}
+.card>h2{font-size:14.5px;font-weight:600;margin:0 0 14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card>h2 a,.card>h2 small{font-weight:400;color:var(--dim);font-size:13px}
+.stack{display:grid;gap:14px}.two{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
+@keyframes pulse{50%{opacity:.35}}@keyframes rise{from{opacity:0;transform:translateY(6px)}}@keyframes sweep{from{transform:scaleX(0)}}
+.rise{animation:rise .45s var(--ease) both}.sweep{transform-origin:left;animation:sweep .7s var(--ease) both}
+.live .rise,.live .sweep{animation:none}
+@media (prefers-reduced-motion:reduce){*,*::before{animation:none!important;transition:none!important}}
+
+/* Frame: sidebar and main */
+.sr{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.app{display:grid;grid-template-columns:264px minmax(0,1fr);min-height:100vh;transition:grid-template-columns .34s var(--ease)}
+aside{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:14px;padding:16px 12px;border-right:1px solid var(--line);background:var(--side);
+overflow:hidden;min-width:0;transition:transform .34s var(--ease),opacity .22s,visibility 0s}
+#side-toggle:checked+.app{grid-template-columns:0 minmax(0,1fr)}
+#side-toggle:checked+.app aside{transform:translateX(-100%);opacity:0;visibility:hidden;transition:transform .34s var(--ease),opacity .22s,visibility 0s .34s}
+#side-toggle:checked+.app .opener{display:inline-grid}
+.top-row{display:flex;align-items:center;gap:8px;padding:0 4px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:650;font-size:17px;letter-spacing:-.02em;margin-right:auto;white-space:nowrap}.logo{width:28px;height:28px;display:block}
+.side-btn{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:9px;color:var(--faint);cursor:pointer;flex:none}
+.side-btn:hover{background:var(--panel);color:var(--text)}.side-btn svg{width:17px;height:17px}
+.opener{display:none;margin:0 6px 0 -6px;border:1px solid var(--line)}
+
+/* Account switcher */
+.acct{position:relative}
+.acct summary{list-style:none;display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--panel);cursor:pointer}
+.acct summary::-webkit-details-marker{display:none}.acct summary:hover{border-color:var(--line2)}
+.av{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-weight:650;font-size:13px;flex:none;background:linear-gradient(135deg,#f5a524,#b8620b);color:#160e00}
+.acct .who{min-width:0;flex:1}.acct .who b{display:block;font-weight:550;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .who small{color:var(--faint);font-size:12px}.acct .chev{width:15px;height:15px;color:var(--faint);flex:none}
+.menu{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:5;background:var(--card);border:1px solid var(--line2);border-radius:12px;padding:6px;box-shadow:0 18px 40px #000a}
+.menu p{margin:4px 8px 6px;font-size:12px;color:var(--faint)}
+.menu a{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;font-size:13.5px;color:var(--dim)}.menu a:hover{background:var(--raise);color:var(--text)}
+.menu a.on{color:var(--text)}.menu a.on::after{content:"";margin-left:auto;width:6px;height:6px;border-radius:50%;background:var(--a)}
+.menu .av{width:22px;height:22px;font-size:11.5px;border-radius:6px}.menu hr{border:0;border-top:1px solid var(--line);margin:6px 2px}
+.menu .add svg{width:16px;height:16px;margin:0 3px}
+
+.find{position:relative}.find input{width:100%;padding-left:32px;padding-right:44px;background:var(--panel)}
+.find svg{position:absolute;left:10px;top:50%;width:15px;height:15px;transform:translateY(-50%);color:var(--faint)}
+kbd{font:11.5px var(--mono);color:var(--faint);border:1px solid var(--line);border-radius:5px;padding:0 5px}.find kbd{position:absolute;right:9px;top:50%;transform:translateY(-50%)}
+.side{display:flex;flex-direction:column;gap:1px;overflow-y:auto;flex:1;margin:0 -4px;padding:0 4px}
+.side .g{font-size:12px;color:var(--faint);padding:14px 10px 6px;margin:0;display:flex;justify-content:space-between}
+.side a{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:9px;color:var(--dim);font-size:14px}
+.side a:hover{background:var(--panel);color:var(--text)}.side a.on{background:var(--raise);color:var(--text)}.side a.on svg{color:var(--a)}.side svg{width:16px;height:16px;flex:none}
+.side .ad{width:8px;height:8px;border-radius:50%;background:var(--line2);flex:none;margin:0 4px}.side .ad.up{background:var(--ok);box-shadow:0 0 0 3px #4ade8022}
+.side .none{color:var(--faint);font-size:13px;padding:4px 10px}
+.side .import{margin-top:6px;border:1px dashed var(--line2);color:var(--dim)}.side .import:hover{border-color:var(--a);color:var(--a2);background:transparent}
+.foot{border-top:1px solid var(--line);padding:12px 6px 0;font-size:12.5px;color:var(--faint);display:grid;gap:6px}.foot a{color:var(--dim)}.foot a:hover{color:var(--a2)}
+
+.main{min-width:0}.wrap{padding:26px 32px 64px;max-width:1180px}
+.crumbs{display:flex;align-items:center;gap:6px;color:var(--faint);font-size:13.5px;margin-bottom:10px}.crumbs a{color:var(--dim)}.crumbs a:hover{color:var(--a2)}
+.crumbs svg{width:14px;height:14px}
+.head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px}
+h1{font-size:28px;font-weight:550;letter-spacing:-.03em;margin:0;display:flex;align-items:center;gap:12px;min-width:0}h1 .chip{font-size:12.5px;letter-spacing:0}
+.head .acts{display:flex;gap:8px;flex-wrap:wrap}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:0 -32px 24px;padding:0 24px;overflow-x:auto;scrollbar-width:none;position:sticky;top:0;background:#000d;backdrop-filter:blur(10px);z-index:3}
+.tabs a{position:relative;padding:12px 10px 13px;color:var(--dim);font-size:14px;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.tabs a:hover{color:var(--text)}.tabs a.on{color:var(--text)}
+.tabs a.on::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;border-radius:2px;background:var(--a)}
+.tabs i{width:5px;height:5px;border-radius:50%;background:var(--faint)}
+.preview{display:flex;gap:12px;align-items:flex-start;border:1px solid #f5a52433;background:linear-gradient(90deg,#f5a52412,transparent);border-radius:var(--r);padding:12px 16px;margin-bottom:18px;font-size:13.5px;color:var(--dim)}
+.preview b{color:var(--a2);font-weight:600}.preview svg{width:17px;height:17px;color:var(--a);flex:none;margin-top:1px}
+.as-founder{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12.5px;color:var(--dim);background:#0d0a04;border-bottom:1px solid #f5a52426;padding:6px 12px}
+.as-founder a{color:var(--a2)}
+
+/* Shared blocks */
+.list{display:grid}.list>a,.list>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 16px;align-items:center;padding:12px 4px;border-top:1px solid var(--line)}
+.list>:first-child{border-top:0}.list>a:hover{background:linear-gradient(90deg,transparent,#ffffff06,transparent)}
+.list .t{min-width:0;display:flex;align-items:center;gap:10px}.list .t b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list .m{color:var(--faint);font-size:13px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}.list .r{text-align:right;color:var(--dim);font-size:13px;white-space:nowrap}
+.steps{display:grid;gap:10px}.step{display:grid;grid-template-columns:130px minmax(0,1fr) 64px;gap:12px;align-items:center;font-size:13.5px}
+.step .bar{position:relative;height:10px;background:var(--raise);border-radius:6px;overflow:hidden}
+.step .bar span{position:absolute;top:0;bottom:0;border-radius:6px;background:var(--ok)}
+.step.s-running .bar span{background:var(--a)}.step.s-failed .bar span{background:var(--bad)}.step.s-pending .bar span,.step.s-skipped .bar span{background:var(--line2)}
+.step .n{display:flex;align-items:center;gap:8px;color:var(--dim)}.step .d{text-align:right;color:var(--faint)}
+.fail{background:#1a0b0c;border:1px solid #5a1d20;border-radius:var(--r);padding:16px 18px;font-size:14px}
+.fail b{display:block;color:#ff8f93;margin-bottom:4px}.fail pre{white-space:pre-wrap;margin:8px 0 0;font:12.5px/1.6 var(--mono);color:#ffd1d3}
+.tip{display:flex;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #5a1d2088;color:var(--text)}.tip svg{width:17px;height:17px;flex:none;color:var(--a)}
+.empty{text-align:center;padding:48px 20px;color:var(--dim)}.empty h3{color:var(--text);font-weight:550;margin:10px 0 4px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr));gap:16px 20px;margin:0}
+.facts div{min-width:0}.facts dt{font-size:12.5px;color:var(--faint);margin-bottom:3px}.facts dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.field{display:grid;grid-template-columns:200px minmax(0,1fr);gap:8px 24px;padding:16px 0;border-top:1px solid var(--line);align-items:center}
+.field:first-of-type{border-top:0;padding-top:0}.field>span{color:var(--dim);font-size:13.5px}.field small{display:block;color:var(--faint);font-size:12.5px;margin-top:2px}
+.field .v{font-family:var(--mono);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}th{text-align:left;color:var(--faint);font-weight:500;font-size:12.5px;padding:0 10px 10px}
+td{padding:11px 10px;border-top:1px solid var(--line);vertical-align:middle}.scroll{overflow-x:auto}
+@media (max-width:860px){.app{grid-template-columns:minmax(0,1fr)}.two{grid-template-columns:minmax(0,1fr)}
+aside{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 16px;border-right:0;border-bottom:1px solid var(--line)}
+.top-row{padding:0}.acct{flex:1;min-width:0}.find,.side .g,.side .apps,.side .import,.foot{display:none}
+.side{flex-direction:row;flex-basis:100%;overflow-x:auto;scrollbar-width:none;margin:0}.side a{white-space:nowrap}
+#side-toggle:checked+.app{grid-template-columns:minmax(0,1fr)}#side-toggle:checked+.app aside{transform:none;opacity:1;visibility:visible}
+.side-btn,#side-toggle:checked+.app .opener{display:none}
+.wrap{padding:20px 16px 48px}.tabs{margin:0 -16px 20px;padding:0 8px}.field{grid-template-columns:minmax(0,1fr)}.step{grid-template-columns:96px minmax(0,1fr) 52px}}
+</style></head><body{{if .Refresh}} class="live"{{end}}>{{end}}
+
+{{define "logo"}}<svg class="logo" viewBox="0 0 32 32" aria-hidden="true" shape-rendering="crispEdges"><rect width="32" height="32" rx="7" fill="#191919"/><g fill="#eee" transform="translate(4 4) scale(1.5)"><rect x="2" y="1" width="12" height="2"/><rect x="2" y="3" width="2" height="12"/><rect x="12" y="3" width="2" height="12"/><rect x="5" y="4" width="4" height="11" fill="#f5a524"/></g></svg>{{end}}
+{{define "panel-icon"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg>{{end}}
+
+{{define "frame"}}<div class="as-founder">You're seeing the customer dashboard as the founder. Customers will sign in with a magic link. <a href="/founder">Founder page</a></div>
+<input type="checkbox" id="side-toggle"{{if .Collapsed}} checked{{end}} class="sr" aria-label="Hide sidebar"><div class="app"><aside>
+<div class="top-row"><a class="brand" href="/dashboard/{{.S.Account.Login}}">{{template "logo"}}foyr</a><label for="side-toggle" class="side-btn" title="Hide sidebar ( [ )">{{template "panel-icon"}}</label></div>
+<details class="acct"><summary><span class="av">{{initial .S.Account.Login}}</span><span class="who"><b>{{.S.Account.Login}}</b><small>GitHub account</small></span>
+<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></summary>
+<div class="menu"><p>Accounts</p>{{range .S.Accounts}}<a href="/dashboard/{{.Login}}"{{if eq .ID $.S.Account.ID}} class="on"{{end}}><span class="av">{{initial .Login}}</span>{{.Login}}</a>{{end}}
+<hr><a class="add" href="https://github.com/apps" title="Install the Foyr GitHub App on another account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Connect another account</a></div></details>
+<label class="find"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+<input id="find" type="search" placeholder="Find an app" autocomplete="off" aria-label="Find an app"><kbd>⌘K</kbd></label>
+<nav class="side" aria-label="Account">
+<a href="/dashboard/{{.S.Account.Login}}"{{if not .S.App}} class="on" aria-current="page"{{end}}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>All apps</a>
+<p class="g">Apps <span>{{len .S.Apps}}</span></p><div class="apps" id="apps">
+{{range .S.Apps}}<a href="/dashboard/{{$.S.Account.Login}}/{{.Slug}}" data-name="{{.Slug}} {{.FullName}}"{{if and $.S.App (eq $.S.App.ID .ID)}} class="on" aria-current="page"{{end}} title="{{.FullName}}"><i class="ad{{if .LiveDeployment}} up{{end}}"></i>{{.Slug}}</a>
+{{else}}<p class="none">No apps yet</p>{{end}}<p class="none" id="nomatch" hidden>No app matches</p></div>
+<a class="import" href="/dashboard/{{.S.Account.Login}}#import"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Import a repository</a>
+</nav>
+<div class="foot"><span>Apps run in Mumbai (ap-south-1)</span><a href="https://foyr.online/docs">Docs</a></div>
+</aside><main class="main">{{end}}
+
+{{define "apphead"}}<div class="wrap" style="padding-bottom:0"><div class="crumbs"><label for="side-toggle" class="side-btn opener" title="Show sidebar ( [ )">{{template "panel-icon"}}</label>
+<a href="/dashboard/{{.S.Account.Login}}">{{.S.Account.Login}}</a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg><span>{{.S.App.Slug}}</span></div>
+<div class="head"><h1>{{.S.App.Slug}}{{if .Live}} <span class="chip c-live">Live</span>{{else}} <span class="chip c-pending">Not live</span>{{end}}</h1>
+<div class="acts"><a class="btn" href="https://github.com/{{.S.App.FullName}}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>Repository</a>
+{{if .Live}}<a class="btn primary" href="https://{{.S.App.Slug}}.{{.Domain}}">Visit</a>{{end}}</div></div></div>
+<nav class="tabs" aria-label="App">{{range .Tabs}}<a href="/dashboard/{{$.S.Account.Login}}/{{$.S.App.Slug}}{{with .Path}}/{{.}}{{end}}"{{if eq .Path $.Tab}} class="on" aria-current="page"{{end}}>{{.Name}}{{if .Preview}}<i title="Preview"></i>{{end}}</a>{{end}}</nav><div class="wrap" style="padding-top:0">{{end}}
+
+{{define "preview"}}<div class="preview" role="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/></svg><div><b>Preview.</b> This tab shows sample data so you can see how it will look. {{.}}</div></div>{{end}}
+
+{{define "endframe"}}</div></main></div>
+<script nonce="{{.Nonce}}">(()=>{const t=document.getElementById("side-toggle"),f=document.getElementById("find");
+const save=()=>{document.cookie="foyr_dash_sidebar="+(t.checked?"collapsed":"open")+"; Path=/dashboard; Max-Age=31536000; Secure; SameSite=Strict"};
+t&&t.addEventListener("change",save);
+f&&f.addEventListener("input",()=>{const q=f.value.trim().toLowerCase();let n=0;document.querySelectorAll("#apps a").forEach(a=>{const m=a.dataset.name.toLowerCase().includes(q);a.hidden=!m;n+=m});
+const e=document.getElementById("nomatch");if(e)e.hidden=n>0||!q});
+f&&f.addEventListener("keydown",e=>{if(e.key==="Enter"){const a=[...document.querySelectorAll("#apps a")].find(a=>!a.hidden);if(a)location.href=a.href}if(e.key==="Escape")f.blur()});
+document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"&&f){e.preventDefault();if(t&&t.checked){t.checked=false;save()}f.focus();return}
+if(e.key!=="["||e.metaKey||e.ctrlKey||e.altKey||/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)||!t)return;t.checked=!t.checked;save()});
+document.addEventListener("click",e=>{document.querySelectorAll("details.acct[open]").forEach(d=>{if(!d.contains(e.target))d.open=false})})})()</script>{{end}}
+{{define "foot"}}</body></html>{{end}}
+{{define "status"}}<span class="chip c-{{.}}">{{.}}</span>{{end}}
+
+{{define "deprow"}}<a class="rise" style="animation-delay:{{delay .I 40}}ms" href="/dashboard/{{.Login}}/{{.R.Slug}}/deployments/{{.R.ID}}">
+<span class="t">{{template "status" .R.Status}}<b>{{first .R.CommitMessage}}</b>{{if .R.Current}}<span class="badge">Current</span>{{end}}</span>
+<span class="r">{{if .R.LiveAt}}{{dur (between .R.CreatedAt .R.LiveAt)}}{{else}}-{{end}}</span>
+<span class="m"><span class="sha">{{short .R.CommitSHA}}</span><span>{{.R.Branch}}</span>{{with .R.PusherLogin}}<span>by {{.}}</span>{{end}}{{if .Many}}<span>{{.R.Slug}}</span>{{end}}</span>
+<span class="r faint">{{since .Now .R.CreatedAt}}</span></a>{{end}}
