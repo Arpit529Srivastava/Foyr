@@ -21,6 +21,8 @@ pause)
   ;;
 resume)
   if [ "$(db_status)" != available ]; then
+    # A database still stopping can't be started yet; wait for it to finish first.
+    [ "$(db_status)" = stopping ] && aws rds wait db-instance-stopped --db-instance-identifier "$DB"
     [ "$(db_status)" = stopped ] && aws rds start-db-instance --db-instance-identifier "$DB" >/dev/null
     echo "starting the database (about 5 minutes)"
     aws rds wait db-instance-available --db-instance-identifier "$DB"
