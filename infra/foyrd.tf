@@ -7,6 +7,7 @@ locals {
     FOYR_GITHUB_WEBHOOK_SECRET = "github-webhook-secret"
     FOYR_GITHUB_PRIVATE_KEY    = "github-private-key"
     FOYR_INTERNAL_TOKEN        = "internal-token"
+    FOYR_FOUNDER_KEY           = "founder-key"
   }
 }
 
@@ -214,6 +215,7 @@ resource "aws_ecs_task_definition" "foyrd" {
       { name = "FOYR_APPS_NAMESPACE_ID", value = aws_service_discovery_private_dns_namespace.apps.id },
       { name = "FOYR_APPS_LOG_GROUP", value = aws_cloudwatch_log_group.apps.name },
       { name = "FOYR_APPS_CAPACITY", value = "FARGATE_SPOT" },
+      { name = "FOYR_APPS_DOMAIN", value = var.apps_domain },
     ]
     secrets = concat(
       [{ name = "FOYR_DATABASE_URL", valueFrom = aws_ssm_parameter.database_url.arn }],
