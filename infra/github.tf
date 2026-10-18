@@ -1,6 +1,7 @@
 # GitHub Actions on main deploys platform images with short-lived credentials, no stored keys (ADR-031).
+# The repo uses GitHub's immutable OIDC subject: owner and repo IDs, so a recreated repo with the same name gets nothing.
 locals {
-  github_repo = "Arpit529Srivastava/Foyr"
+  github_repo = "Arpit529Srivastava@151747267/Foyr@1388194589"
 }
 
 # One per account and already shared with another project, so it is read, never owned here.

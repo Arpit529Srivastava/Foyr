@@ -256,7 +256,7 @@ run "front_door" {
   assert {
     condition = alltrue(flatten([
       for s in data.aws_iam_policy_document.github_trust.statement : [
-        for c in s.condition : c.values == tolist(["repo:Arpit529Srivastava/Foyr:ref:refs/heads/main"]) if c.variable == "token.actions.githubusercontent.com:sub"
+        for c in s.condition : c.values == tolist(["repo:Arpit529Srivastava@151747267/Foyr@1388194589:ref:refs/heads/main"]) if c.variable == "token.actions.githubusercontent.com:sub"
       ]
     ])) && length(flatten([for s in data.aws_iam_policy_document.github_trust.statement : [for c in s.condition : c if c.variable == "token.actions.githubusercontent.com:sub"]])) == 1
     error_message = "only workflows on main may assume the deploy role"
