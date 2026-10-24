@@ -1,9 +1,11 @@
 package config
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"os"
 	"path/filepath"
@@ -149,5 +151,83 @@ func TestFounderSettings(t *testing.T) {
 	c, err := Load(e.get)
 	if err != nil || c.FounderKey != strings.Repeat("f", 32) || c.AppsDomain != "apps.foyr.online" {
 		t.Fatalf("config = %+v err=%v", c, err)
+	}
+}
+
+func loginEnv(t *testing.T) env {
+	t.Helper()
+	seed := make([]byte, 32)
+	for i := range seed {
+		seed[i] = byte(i + 1)
+	}
+	return env{
+		"FOYR_GITHUB_APP_ID":         "1",
+		"FOYR_GITHUB_WEBHOOK_SECRET": "a-long-random-webhook-secret",
+		"FOYR_GITHUB_PRIVATE_KEY":    string(testKeyPEM(t)),
+		"FOYR_DATABASE_URL":          "postgres://x",
+		"FOYR_INTERNAL_TOKEN":        "internal-token-internal-token-123456",
+		"FOYR_WORKERS":               "0",
+		"FOYR_APPS_DOMAIN":           "apps.foyr.online",
+		"FOYR_SESSION_KEY":           base64.StdEncoding.EncodeToString(seed),
+		"FOYR_AUTH_URL":              "https://auth.foyr.online/",
+		"FOYR_RESEND_API_KEY":        "re_test_key",
+		"FOYR_MAIL_FROM":             "Foyr <login@foyr.online>",
+	}
+}
+
+func TestLoginSettings(t *testing.T) {
+	c, err := Load(loginEnv(t).get)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.SessionKey) != ed25519.PrivateKeySize || c.AuthURL != "https://auth.foyr.online" ||
+		c.ResendAPIKey != "re_test_key" || c.MailFrom != "Foyr <login@foyr.online>" || !c.LoginOn() {
+		t.Fatalf("config = %+v", c)
+	}
+
+	// Without a session key login is off and the other settings are not checked.
+	off := loginEnv(t)
+	delete(off, "FOYR_SESSION_KEY")
+	off["FOYR_AUTH_URL"] = "http://evil.com"
+	if c, err := Load(off.get); err != nil || c.LoginOn() {
+		t.Fatalf("login off: %+v, %v", c, err)
+	}
+
+	// Local development: localhost over http and no Resend key (emails go to the log).
+	dev := loginEnv(t)
+	dev["FOYR_AUTH_URL"] = "http://localhost:8080"
+	delete(dev, "FOYR_RESEND_API_KEY")
+	delete(dev, "FOYR_MAIL_FROM")
+	if c, err := Load(dev.get); err != nil || !c.LoginOn() || c.ResendAPIKey != "" {
+		t.Fatalf("dev: %+v, %v", c, err)
+	}
+}
+
+func TestLoginSettingsRejected(t *testing.T) {
+	cases := []struct {
+		name    string
+		edit    func(env)
+		wantErr string
+	}{
+		{"bad key", func(e env) { e["FOYR_SESSION_KEY"] = "not-a-key" }, "FOYR_SESSION_KEY"},
+		{"short key", func(e env) { e["FOYR_SESSION_KEY"] = base64.StdEncoding.EncodeToString([]byte("short")) }, "FOYR_SESSION_KEY"},
+		{"no auth url", func(e env) { delete(e, "FOYR_AUTH_URL") }, "FOYR_AUTH_URL is not set"},
+		{"plain http on a real host", func(e env) { e["FOYR_AUTH_URL"] = "http://evil.com" }, "FOYR_AUTH_URL must be https"},
+		{"localhost lookalike", func(e env) { e["FOYR_AUTH_URL"] = "http://localhost.evil.com" }, "FOYR_AUTH_URL must be https"},
+		{"auth url with a path", func(e env) { e["FOYR_AUTH_URL"] = "https://auth.foyr.online/login" }, "FOYR_AUTH_URL must be https"},
+		{"no mail setup", func(e env) { delete(e, "FOYR_RESEND_API_KEY") }, "FOYR_RESEND_API_KEY"},
+		{"resend without a from address", func(e env) { delete(e, "FOYR_MAIL_FROM") }, "FOYR_MAIL_FROM"},
+		{"no apps domain", func(e env) { delete(e, "FOYR_APPS_DOMAIN") }, "FOYR_APPS_DOMAIN"},
+	}
+	for _, c := range cases {
+		e := loginEnv(t)
+		c.edit(e)
+		_, err := Load(e.get)
+		if err == nil || !strings.Contains(err.Error(), c.wantErr) {
+			t.Errorf("%s: err = %v, want it to mention %q", c.name, err, c.wantErr)
+		}
+		if err != nil && strings.Contains(err.Error(), e["FOYR_SESSION_KEY"]) && e["FOYR_SESSION_KEY"] != "" {
+			t.Errorf("%s: error leaks the session key: %v", c.name, err)
+		}
 	}
 }

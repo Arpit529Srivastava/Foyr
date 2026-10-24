@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/Arpit529Srivastava/Foyr/internal/config"
@@ -12,6 +13,8 @@ import (
 	"github.com/Arpit529Srivastava/Foyr/internal/founder"
 	"github.com/Arpit529Srivastava/Foyr/internal/github"
 	"github.com/Arpit529Srivastava/Foyr/internal/health"
+	"github.com/Arpit529Srivastava/Foyr/internal/login"
+	"github.com/Arpit529Srivastava/Foyr/internal/mail"
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
 	"github.com/Arpit529Srivastava/Foyr/internal/store"
 )
@@ -20,8 +23,12 @@ import (
 func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", health.Handler)
-	fh := &founder.Handler{Data: st, Key: cfg.FounderKey, AppsDomain: cfg.AppsDomain}
+	sender := mailer(cfg, log)
+	fh := &founder.Handler{Data: st, Key: cfg.FounderKey, AppsDomain: cfg.AppsDomain, AppsScheme: appsScheme(cfg), Mail: sender}
 	fh.Register(mux)
+	if cfg.LoginOn() {
+		(&login.Handler{Store: st, Mail: sender, AuthURL: cfg.AuthURL, AppsDomain: cfg.AppsDomain}).Register(mux)
+	}
 	// The customer dashboard borrows the founder sign-in until customer login exists.
 	(&dashboard.Handler{Data: st, Allowed: fh.SignedIn, SignIn: "/founder", AppsDomain: cfg.AppsDomain}).Register(mux)
 	mux.Handle("POST /webhooks/github", &github.Handler{
@@ -31,6 +38,26 @@ func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handl
 		Record:    recordDelivery(st),
 	})
 	return obs.RequestID(log, mux)
+}
+
+// mailer picks how login and invite emails go out: Resend, the log in local development, or nothing
+// while login is off.
+func mailer(cfg *config.Config, log *slog.Logger) mail.Sender {
+	switch {
+	case cfg.ResendAPIKey != "":
+		return mail.Resend{APIKey: cfg.ResendAPIKey, From: cfg.MailFrom}
+	case cfg.LoginOn():
+		return mail.LogSender{Log: log}
+	}
+	return nil
+}
+
+// appsScheme is https, except when the auth URL is plain http on localhost (development).
+func appsScheme(cfg *config.Config) string {
+	if u, err := url.Parse(cfg.AuthURL); err == nil && u.Scheme == "http" {
+		return "http"
+	}
+	return "https"
 }
 
 // onPush queues a deployment for pushes to an app's default branch.

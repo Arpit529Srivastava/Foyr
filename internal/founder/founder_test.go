@@ -60,6 +60,15 @@ func (f fake) ListAudit(context.Context, store.AuditFilter) ([]store.AuditEvent,
 	return []store.AuditEvent{{OccurredAt: t0, Action: "deployment.created", Actor: store.Actor{Type: "github_user", Login: "octo"}}}, nil
 }
 
+func (fake) ListMembers(context.Context, int64) ([]store.Member, error) { return nil, nil }
+func (fake) ListInvites(context.Context, int64) ([]store.Invite, error) { return nil, nil }
+func (fake) CreateInvite(context.Context, int64, string, string, store.Actor) (store.Invite, error) {
+	return store.Invite{}, nil
+}
+func (fake) RevokeInvite(context.Context, int64, store.Actor) error          { return nil }
+func (fake) RemoveMember(context.Context, int64, int64, store.Actor) error   { return nil }
+func (fake) SetAccessMode(context.Context, int64, string, store.Actor) error { return nil }
+
 func newHandler(k, status string) http.Handler {
 	h := &Handler{Data: fake{status: status}, Key: k, AppsDomain: "apps.example.test", Now: func() time.Time { return t0.Add(time.Hour) }, FailDelay: -1}
 	mux := http.NewServeMux()

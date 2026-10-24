@@ -1,0 +1,28 @@
+{{define "app.html"}}{{template "head" .}}{{template "frame" .}}
+<div class="ph rise"><div><h1>{{.App.Slug}} <span>access</span></h1>
+<p>Who can open {{if $.Domain}}{{.App.Slug}}.{{$.Domain}}{{else}}this app{{end}}. <a href="/founder/deployments?app={{.App.ID}}">Deployments</a></p></div>
+<span class="chip {{if eq .App.AccessMode "public"}}c-live{{else}}c-building{{end}}">{{.App.AccessMode}}</span></div>
+{{if .Error}}<p class="fail rise"><b>Not done</b>{{.Error}}</p>{{end}}
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+<section class="card rise" style="animation-delay:60ms"><h2>Access mode</h2>
+<p class="dim" style="margin:0 0 14px">Private: only members and invited emails sign in. Public: anyone can open it, and signed-in visitors are identified.</p>
+<form method="post" action="/founder/apps/{{.App.ID}}/access" style="display:flex;gap:10px;flex-wrap:wrap">
+<button name="mode" value="private"{{if eq .App.AccessMode "private"}} disabled{{end}}>Make private</button>
+<button name="mode" value="public"{{if eq .App.AccessMode "public"}} disabled{{end}}>Make public</button></form></section>
+<section class="card rise" style="animation-delay:100ms"><h2>Invite someone</h2>
+<form method="post" action="/founder/apps/{{.App.ID}}/invites" style="display:grid;gap:10px">
+<input name="email" type="email" required aria-label="Email" placeholder="teammate@example.com" autocomplete="off"
+ style="background:#000;border:1px solid var(--line);color:var(--text);border-radius:14px;padding:11px 14px;font:inherit">
+<select name="role" aria-label="Role" style="background:#000;border:1px solid var(--line);color:var(--text);border-radius:14px;padding:11px 14px;font:inherit">
+{{range .Roles}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+<button>Send invite</button></form></section></div>
+<section class="card rise" style="animation-delay:140ms;margin-top:14px;padding:10px 12px"><div class="scroll"><table>
+<tr><th>Member</th><th>Role</th><th>Since</th><th></th></tr>
+{{range .Members}}<tr><td>{{.Email}}</td><td class="n"><span class="chip">{{.Role}}</span></td><td class="n dim">{{since $.Now .CreatedAt}}</td>
+<td class="n"><form method="post" action="/founder/apps/{{$.App.ID}}/members/{{.UserID}}/remove"><button>Remove</button></form></td></tr>
+{{else}}<tr><td colspan="4" class="dim">No members yet. Invite someone above.</td></tr>{{end}}</table></div></section>
+{{if .Invites}}<section class="card rise" style="animation-delay:180ms;margin-top:14px;padding:10px 12px"><div class="scroll"><table>
+<tr><th>Open invite</th><th>Role</th><th>Sent</th><th></th></tr>
+{{range .Invites}}<tr><td>{{.Email}}</td><td class="n"><span class="chip">{{.Role}}</span></td><td class="n dim">{{since $.Now .CreatedAt}}</td>
+<td class="n"><form method="post" action="/founder/apps/{{$.App.ID}}/invites/{{.ID}}/revoke"><button>Revoke</button></form></td></tr>{{end}}</table></div></section>{{end}}
+{{template "endframe" .}}{{template "foot"}}{{end}}

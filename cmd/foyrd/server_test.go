@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"github.com/Arpit529Srivastava/Foyr/internal/config"
 	"github.com/Arpit529Srivastava/Foyr/internal/db/dbtest"
 	"github.com/Arpit529Srivastava/Foyr/internal/github"
+	"github.com/Arpit529Srivastava/Foyr/internal/mail"
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
 	"github.com/Arpit529Srivastava/Foyr/internal/store"
 )
@@ -246,5 +248,46 @@ func TestDashboardNeedsTheFounderSignIn(t *testing.T) {
 		if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/founder" {
 			t.Errorf("GET %s signed out = %d %q, want a redirect to /founder", p, rec.Code, rec.Header().Get("Location"))
 		}
+	}
+}
+
+func TestLoginRoutesExistOnlyWhenLoginIsOn(t *testing.T) {
+	e := setup(t)
+	get := func(h http.Handler, host, path string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "https://"+host+path, nil)
+		req.Host = host
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	if rec := get(e.h, "auth.foyr.test", "/login"); rec.Code != http.StatusNotFound {
+		t.Fatalf("login off: GET /login = %d, want 404", rec.Code)
+	}
+
+	_, priv, _ := ed25519.GenerateKey(rand.Reader)
+	cfg := &config.Config{GitHubWebhookSecret: e.secret, SessionKey: priv, AuthURL: "https://auth.foyr.test", AppsDomain: "apps.foyr.test"}
+	on := newServer(cfg, obs.NewLogger(e.logs), e.st)
+	rec := get(on, "auth.foyr.test", "/login?app=foyr-hello")
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `name="email"`) {
+		t.Fatalf("login on: GET /login = %d %s", rec.Code, rec.Body)
+	}
+	if rec := get(on, "api.foyr.test", "/login"); rec.Code != http.StatusNotFound {
+		t.Errorf("login on the api host = %d, want 404 (only the auth host serves it)", rec.Code)
+	}
+}
+
+func TestMailerChoice(t *testing.T) {
+	log := obs.NewLogger(&syncBuffer{})
+	if m := mailer(&config.Config{}, log); m != nil {
+		t.Errorf("login off: mailer = %T, want nil", m)
+	}
+	_, priv, _ := ed25519.GenerateKey(rand.Reader)
+	dev := &config.Config{SessionKey: priv, AuthURL: "http://localhost:8080"}
+	if _, ok := mailer(dev, log).(mail.LogSender); !ok {
+		t.Errorf("localhost without a Resend key: mailer = %T, want LogSender", mailer(dev, log))
+	}
+	prod := &config.Config{SessionKey: priv, AuthURL: "https://auth.foyr.test", ResendAPIKey: "k", MailFrom: "Foyr <l@foyr.test>"}
+	if r, ok := mailer(prod, log).(mail.Resend); !ok || r.From != "Foyr <l@foyr.test>" {
+		t.Errorf("with a Resend key: mailer = %#v", mailer(prod, log))
 	}
 }

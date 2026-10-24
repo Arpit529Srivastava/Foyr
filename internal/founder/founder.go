@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Arpit529Srivastava/Foyr/internal/mail"
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
 	"github.com/Arpit529Srivastava/Foyr/internal/store"
 	"github.com/Arpit529Srivastava/Foyr/internal/ui"
@@ -44,13 +45,23 @@ type Data interface {
 	Steps(ctx context.Context, deploymentID int64) ([]store.Step, error)
 	Timeline(ctx context.Context, deploymentID int64) ([]store.DeploymentEvent, error)
 	ListAudit(ctx context.Context, f store.AuditFilter) ([]store.AuditEvent, error)
+
+	// Who may open an app (ADR-035).
+	ListMembers(ctx context.Context, appID int64) ([]store.Member, error)
+	ListInvites(ctx context.Context, appID int64) ([]store.Invite, error)
+	CreateInvite(ctx context.Context, appID int64, email, role string, by store.Actor) (store.Invite, error)
+	RevokeInvite(ctx context.Context, inviteID int64, by store.Actor) error
+	RemoveMember(ctx context.Context, appID, userID int64, by store.Actor) error
+	SetAccessMode(ctx context.Context, appID int64, mode string, by store.Actor) error
 }
 
 // Handler serves /founder pages.
 type Handler struct {
 	Data       Data
-	Key        string // FOYR_FOUNDER_KEY; empty turns the page off
-	AppsDomain string // for links to live apps
+	Key        string      // FOYR_FOUNDER_KEY; empty turns the page off
+	AppsDomain string      // for links to live apps
+	AppsScheme string      // "https" unless developing locally
+	Mail       mail.Sender // sends invites; nil saves them without an email
 	Now        func() time.Time
 	FailDelay  time.Duration // 0 means defaultFailDelay; negative turns it off (tests)
 	lim        limiter
@@ -78,6 +89,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /founder/deployments", h.guard(h.deployments))
 	mux.HandleFunc("GET /founder/deployments/{id}", h.guard(h.deployment))
 	mux.HandleFunc("GET /founder/activity", h.guard(h.activity))
+	mux.HandleFunc("GET /founder/apps/{id}", h.guard(h.appPage))
+	mux.HandleFunc("POST /founder/apps/{id}/invites", h.guardPost(h.invite))
+	mux.HandleFunc("POST /founder/apps/{id}/invites/{iid}/revoke", h.guardPost(h.revokeInvite))
+	mux.HandleFunc("POST /founder/apps/{id}/members/{uid}/remove", h.guardPost(h.removeMember))
+	mux.HandleFunc("POST /founder/apps/{id}/access", h.guardPost(h.setAccess))
 }
 
 func (h *Handler) now() time.Time {

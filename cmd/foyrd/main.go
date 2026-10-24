@@ -86,7 +86,7 @@ func run() error {
 
 	internal := &http.Server{
 		Addr:              cfg.InternalAddr,
-		Handler:           newInternalServer(st, cfg.InternalToken, log),
+		Handler:           newInternalServer(st, cfg.InternalToken, log, cfg.SessionKey),
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      10 * time.Second,
 	}
