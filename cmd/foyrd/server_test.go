@@ -291,3 +291,28 @@ func TestMailerChoice(t *testing.T) {
 		t.Errorf("with a Resend key: mailer = %#v", mailer(prod, log))
 	}
 }
+
+func TestSiteURLComesFromTheAuthURL(t *testing.T) {
+	for auth, want := range map[string]string{
+		"https://auth.foyr.online":  "https://foyr.online",
+		"https://auth.example.com":  "https://example.com",
+		"http://localhost:8080":     "",
+		"https://login.example.com": "",
+		"":                          "",
+	} {
+		if got := siteURL(&config.Config{AuthURL: auth}); got != want {
+			t.Errorf("siteURL(%q) = %q, want %q", auth, got, want)
+		}
+	}
+}
+
+func TestFoyrdServesTheFavicon(t *testing.T) {
+	e := setup(t)
+	for path, ctype := range map[string]string{"/favicon.svg": "image/svg+xml", "/favicon.png": "image/png", "/favicon.ico": "image/png"} {
+		rec := httptest.NewRecorder()
+		e.h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != ctype {
+			t.Errorf("%s: %d %q, want 200 %q", path, rec.Code, rec.Header().Get("Content-Type"), ctype)
+		}
+	}
+}

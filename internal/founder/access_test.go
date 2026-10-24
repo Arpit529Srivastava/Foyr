@@ -167,6 +167,22 @@ func TestInviteCreatesAndEmails(t *testing.T) {
 	}
 }
 
+func TestInviteEmailUsesTheFoyrDesign(t *testing.T) {
+	af, ob := &accessFake{mode: "private"}, &outbox{}
+	h := &Handler{Data: af, Mail: ob, Key: key, AppsDomain: "apps.example.test", SiteURL: "https://foyr.test", Now: func() time.Time { return t0.Add(time.Hour) }, FailDelay: -1}
+	mux := http.NewServeMux()
+	h.Register(mux)
+	if w := do(mux, "POST", "/founder/apps/1/invites", url.Values{"email": {"ana@example.com"}, "role": {"owner"}}, signIn(t, mux)); w.Code != http.StatusSeeOther {
+		t.Fatalf("status %d", w.Code)
+	}
+	m := ob.sent[0]
+	for _, want := range []string{"https://foyr.test/email/banner.jpg", "You&#39;re invited to foyr-hello.", `href="https://foyr-hello.apps.example.test/"`, "owner"} {
+		if !strings.Contains(m.HTML, want) {
+			t.Errorf("HTML lacks %q", want)
+		}
+	}
+}
+
 func TestInviteErrorsShowOnThePage(t *testing.T) {
 	for _, c := range []struct {
 		err    error
@@ -237,5 +253,22 @@ func TestAccessPostsNeedSameOrigin(t *testing.T) {
 	}
 	if len(af.calls) != 0 || len(ob.sent) != 0 {
 		t.Errorf("a cross-site post got through: %v", af.calls)
+	}
+}
+
+func TestFounderPagesLinkTheFavicon(t *testing.T) {
+	h := accessHandler(&accessFake{mode: "private"}, &outbox{})
+	c := signIn(t, h)
+	for name, w := range map[string]*httptest.ResponseRecorder{
+		"sign-in page": do(h, "GET", "/founder", nil, nil),
+		"overview":     do(h, "GET", "/founder", nil, c),
+		"access page":  do(h, "GET", "/founder/apps/1", nil, c),
+	} {
+		body := w.Body.String()
+		for _, want := range []string{`rel="icon"`, `href="/favicon.svg"`, `href="/favicon.png"`, `rel="apple-touch-icon"`} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s lacks %s", name, want)
+			}
+		}
 	}
 }

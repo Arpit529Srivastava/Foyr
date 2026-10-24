@@ -168,6 +168,21 @@ func regexpLink(t *testing.T, text string) *url.URL {
 	return nil
 }
 
+func TestLoginEmailUsesTheFoyrDesign(t *testing.T) {
+	g := newRig(t)
+	g.h.SiteURL = "https://foyr.test"
+	g.post("/login", loginForm("crm", "ana@example.com"))
+	m := g.sent()[0]
+	link := regexpLink(t, m.Text)
+	if !strings.Contains(m.HTML, "https://foyr.test/email/banner.jpg") || !strings.Contains(m.HTML, "Sign in to crm") ||
+		!strings.Contains(m.HTML, `role="presentation"`) {
+		t.Errorf("the HTML is not the designed email: %.200s", m.HTML)
+	}
+	if !strings.Contains(m.HTML, "t="+link.Query().Get("t")) {
+		t.Error("the HTML does not carry the sign-in link")
+	}
+}
+
 func TestLoginFormAndBadEmail(t *testing.T) {
 	g := newRig(t)
 	w := g.get("/login?app=crm&return=%2Freports")
@@ -346,5 +361,24 @@ func TestPagesSendSecurityHeaders(t *testing.T) {
 	}
 	if len(nonces) != len(pages) {
 		t.Error("nonce repeats between pages")
+	}
+}
+
+func TestLoginPagesLinkTheFavicon(t *testing.T) {
+	g := newRig(t)
+	g.post("/login", loginForm("crm", "ana@example.com"))
+	tok := regexpLink(t, g.sent()[0].Text).Query().Get("t")
+	for name, w := range map[string]*httptest.ResponseRecorder{
+		"form":    g.get("/login?app=crm"),
+		"sent":    g.post("/login", loginForm("crm", "eve@example.com")),
+		"verify":  g.get("/login/verify?t=" + tok + "&app=crm"),
+		"expired": g.post("/login/verify", url.Values{"t": {"nope"}}),
+	} {
+		body := w.Body.String()
+		for _, want := range []string{`rel="icon"`, `href="/favicon.svg"`, `href="/favicon.png"`, `rel="apple-touch-icon"`} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s lacks %s", name, want)
+			}
+		}
 	}
 }

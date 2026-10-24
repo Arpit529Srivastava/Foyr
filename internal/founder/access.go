@@ -131,12 +131,7 @@ func (h *Handler) invite(w http.ResponseWriter, r *http.Request) {
 			scheme = "https"
 		}
 		link := scheme + "://" + app.Slug + "." + h.AppsDomain + "/"
-		msg := mail.Message{
-			To:      inv.Email,
-			Subject: "You're invited to " + app.Slug,
-			Text: "Foyr invited you to " + app.Slug + " as " + inv.Role + ".\n\nOpen it: " + link +
-				"\n\nYou'll be asked for your email and sent a sign-in link. No password.\n",
-		}
+		msg := mail.InviteMessage(inv.Email, app.Slug, inv.Role, link, h.SiteURL)
 		if err := h.Mail.Send(ctx, msg); err != nil {
 			obs.Logger(ctx).Error("invite email failed", "app", app.Slug, "err", err)
 			h.renderApp(w, r, id, http.StatusBadGateway, "The invite is saved, but the email could not be sent. Check the mail settings.")
