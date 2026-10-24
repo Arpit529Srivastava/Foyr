@@ -39,5 +39,5 @@ func maintainOnce(ctx context.Context, st *store.Store, log *slog.Logger) {
 		log.Error("prune failed", "err", err)
 		return
 	}
-	log.Info("maintenance done", "pruned_deliveries", pruned.Deliveries, "pruned_jobs", pruned.Jobs)
+	log.Info("maintenance done", "pruned_deliveries", pruned.Deliveries, "pruned_jobs", pruned.Jobs, "pruned_auth", pruned.Auth)
 }
