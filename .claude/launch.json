@@ -23,6 +23,32 @@
         "set -a; source ~/.config/foyr/foyrd-dev.env; set +a; FOYR_WORKERS=0 FOYR_ADDR=:8090 FOYR_INTERNAL_ADDR=:9091 FOYR_DATABASE_URL=postgres://$USER@localhost:5432/foyr_dev?sslmode=disable FOYR_APPS_DOMAIN=apps.foyr.online FOYR_FOUNDER_KEY=local-preview-key-not-a-secret-0001 exec go run ./cmd/foyrd"
       ],
       "port": 8090
+    },
+    {
+      "name": "foyrd-login",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "set -a; source ~/.config/foyr/foyrd-dev.env; set +a; ROOT=$PWD FOYRD_PORT=8090; source scripts/login-dev-env.sh; FOYR_WORKERS=0 FOYR_ADDR=:8090 FOYR_INTERNAL_ADDR=:9091 FOYR_DATABASE_URL=postgres://$USER@localhost:5432/foyr_dev?sslmode=disable FOYR_SESSION_KEY=$(cat $DEV_KEY) FOYR_APPS_DOMAIN=apps.localhost:8091 FOYR_FOUNDER_KEY=local-preview-key-not-a-secret-0001 exec go run ./cmd/foyrd"
+      ],
+      "port": 8090
+    },
+    {
+      "name": "authproxy-login",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "set -a; source ~/.config/foyr/foyrd-dev.env; set +a; ROOT=$PWD FOYRD_PORT=8090; source scripts/login-dev-env.sh; FOYR_ADDR=:8091 FOYR_APPS_DOMAIN=apps.localhost FOYR_FOYRD_URL=http://localhost:9091 FOYR_SESSION_PUBLIC_KEY=$(cat $DEV_PUB) FOYR_STATIC_ROUTES=foyr-hello=localhost:3000 exec go run ./cmd/authproxy"
+      ],
+      "port": 8091
+    },
+    {
+      "name": "echo-app",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "scripts/echo-app.py"
+      ],
+      "port": 3000
     }
   ]
 }

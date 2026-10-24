@@ -2,11 +2,14 @@
 package config
 
 import (
+	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -30,6 +33,12 @@ type Config struct {
 	Workers             int    // build workers in this process; 0 turns building off
 	FounderKey          string // FOYR_FOUNDER_KEY for the founder page (ADR-033); empty turns it off
 	AppsDomain          string // APPS_DOMAIN, for links to live apps
+
+	// Magic-link login (ADR-035); on when SessionKey is set.
+	SessionKey   ed25519.PrivateKey // FOYR_SESSION_KEY: 32-byte seed, base64; signs session tokens
+	AuthURL      string             // FOYR_AUTH_URL: https://auth.<PLATFORM_DOMAIN>, or http://localhost:<port> for development
+	ResendAPIKey string             // FOYR_RESEND_API_KEY; empty is allowed only with a localhost AuthURL (emails go to the log)
+	MailFrom     string             // FOYR_MAIL_FROM, e.g. Foyr <login@foyr.online>
 
 	// Where apps run (ADR-029); required when Workers > 0. Values come from `tofu output`.
 	ECSCluster          string
@@ -132,6 +141,8 @@ func Load(getenv func(string) string) (*Config, error) {
 	}
 	c.AppsDomain = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(getenv("FOYR_APPS_DOMAIN"))), ".")
 
+	errs = append(errs, loadLogin(c, getenv)...)
+
 	key, err := loadKey(getenv)
 	if err != nil {
 		errs = append(errs, err)
@@ -142,6 +153,53 @@ func Load(getenv func(string) string) (*Config, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+// LoginOn reports whether magic-link login is configured.
+func (c *Config) LoginOn() bool { return len(c.SessionKey) > 0 }
+
+// loadLogin reads the login settings. Nothing is checked while FOYR_SESSION_KEY is unset.
+func loadLogin(c *Config, getenv func(string) string) []error {
+	raw := strings.TrimSpace(getenv("FOYR_SESSION_KEY"))
+	if raw == "" {
+		return nil
+	}
+	var errs []error
+	seed, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil || len(seed) != ed25519.SeedSize {
+		// The value is never echoed.
+		errs = append(errs, errors.New("FOYR_SESSION_KEY must be a 32-byte Ed25519 seed in base64"))
+	} else {
+		c.SessionKey = ed25519.NewKeyFromSeed(seed)
+	}
+
+	local := false
+	switch v := strings.TrimRight(strings.TrimSpace(getenv("FOYR_AUTH_URL")), "/"); {
+	case v == "":
+		errs = append(errs, missing("FOYR_AUTH_URL"))
+	default:
+		u, err := url.Parse(v)
+		okHTTPS := err == nil && u.Scheme == "https" && u.Host != ""
+		local = err == nil && u.Scheme == "http" && (u.Host == "localhost" || strings.HasPrefix(u.Host, "localhost:"))
+		if !(okHTTPS || local) || u.Path != "" || u.RawQuery != "" || u.User != nil {
+			errs = append(errs, errors.New("FOYR_AUTH_URL must be https://<host>, or http://localhost:<port> for development"))
+			local = false
+		}
+		c.AuthURL = v
+	}
+
+	c.ResendAPIKey = strings.TrimSpace(getenv("FOYR_RESEND_API_KEY"))
+	c.MailFrom = strings.TrimSpace(getenv("FOYR_MAIL_FROM"))
+	switch {
+	case c.ResendAPIKey == "" && !local:
+		errs = append(errs, errors.New("FOYR_RESEND_API_KEY is not set (login emails need it unless FOYR_AUTH_URL is http://localhost)"))
+	case c.ResendAPIKey != "" && c.MailFrom == "":
+		errs = append(errs, missing("FOYR_MAIL_FROM"))
+	}
+	if c.AppsDomain == "" {
+		errs = append(errs, errors.New("FOYR_APPS_DOMAIN is not set (login redirects to <app>.<apps domain>)"))
+	}
+	return errs
 }
 
 // loadKey reads the App key from FOYR_GITHUB_PRIVATE_KEY (PEM text) or FOYR_GITHUB_PRIVATE_KEY_PATH (file).

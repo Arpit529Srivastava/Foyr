@@ -41,6 +41,7 @@ func (s *Store) RecordDelivery(ctx context.Context, d Delivery) error {
 const (
 	DeliveryRetention = 30 * 24 * time.Hour
 	JobRetention      = 7 * 24 * time.Hour
+	AuthRetention     = 24 * time.Hour // how long expired tokens, codes and sessions are kept
 )
 
 // partitionLock serialises partition creation across foyrd copies.
@@ -81,9 +82,10 @@ func (s *Store) EnsureAuditPartitions(ctx context.Context, now time.Time, months
 type Pruned struct {
 	Deliveries int64
 	Jobs       int64
+	Auth       int64 // login tokens, auth codes and sessions
 }
 
-// Prune deletes webhook deliveries and finished jobs past retention. Deployments and audit events are kept.
+// Prune deletes webhook deliveries, finished jobs and expired login rows past retention. Deployments and audit events are kept.
 func (s *Store) Prune(ctx context.Context, now time.Time) (Pruned, error) {
 	var p Pruned
 	tag, err := s.Pool.Exec(ctx, `DELETE FROM webhook_deliveries WHERE received_at < $1`, now.Add(-DeliveryRetention))
@@ -97,5 +99,17 @@ func (s *Store) Prune(ctx context.Context, now time.Time) (Pruned, error) {
 		return p, err
 	}
 	p.Jobs = tag.RowsAffected()
+	cutoff := now.Add(-AuthRetention)
+	for _, q := range []string{
+		`DELETE FROM login_tokens WHERE expires_at < $1`,
+		`DELETE FROM auth_codes WHERE expires_at < $1`,
+		`DELETE FROM sessions WHERE expires_at < $1`,
+	} {
+		tag, err = s.Pool.Exec(ctx, q, cutoff)
+		if err != nil {
+			return p, err
+		}
+		p.Auth += tag.RowsAffected()
+	}
 	return p, nil
 }

@@ -8,6 +8,8 @@ locals {
     FOYR_GITHUB_PRIVATE_KEY    = "github-private-key"
     FOYR_INTERNAL_TOKEN        = "internal-token"
     FOYR_FOUNDER_KEY           = "founder-key"
+    FOYR_SESSION_KEY           = "session-key"    # Ed25519 seed that signs sessions (ADR-035)
+    FOYR_RESEND_API_KEY        = "resend-api-key" # login and invite emails
   }
 }
 
@@ -216,6 +218,8 @@ resource "aws_ecs_task_definition" "foyrd" {
       { name = "FOYR_APPS_LOG_GROUP", value = aws_cloudwatch_log_group.apps.name },
       { name = "FOYR_APPS_CAPACITY", value = "FARGATE_SPOT" },
       { name = "FOYR_APPS_DOMAIN", value = var.apps_domain },
+      { name = "FOYR_AUTH_URL", value = "https://${local.auth_domain}" },
+      { name = "FOYR_MAIL_FROM", value = "Foyr <login@mail.${var.platform_domain}>" },
     ]
     secrets = concat(
       [{ name = "FOYR_DATABASE_URL", valueFrom = aws_ssm_parameter.database_url.arn }],
@@ -249,14 +253,14 @@ resource "aws_lb_target_group" "foyrd" {
   }
 }
 
-# api.foyr.online goes to foyrd; every other host stays with authproxy.
+# api., and once the certificate is live auth. and app., go to foyrd; every other host stays with authproxy.
 resource "aws_lb_listener_rule" "api" {
   listener_arn = aws_lb_listener.https.arn
   priority     = 10
 
   condition {
     host_header {
-      values = [var.api_domain]
+      values = concat([var.api_domain], var.platform_hosts_live ? local.platform_hosts : [])
     }
   }
 

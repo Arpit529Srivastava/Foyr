@@ -19,6 +19,7 @@ type App struct {
 	Removed        bool
 	LiveDeployment int64 // 0 when nothing is live
 	Slug           string
+	AccessMode     string // private or public
 }
 
 // GetApp returns one app.
@@ -31,11 +32,11 @@ func (s *Store) GetApp(ctx context.Context, id int64) (App, error) {
 }
 
 const appCols = `id, installation_id, github_repo_id, full_name, default_branch,
-	removed_at IS NOT NULL, coalesce(live_deployment_id, 0), coalesce(slug, '')`
+	removed_at IS NOT NULL, coalesce(live_deployment_id, 0), coalesce(slug, ''), access_mode`
 
 func scanApp(r pgx.Row) (App, error) {
 	var a App
-	err := r.Scan(&a.ID, &a.InstallationID, &a.GitHubRepoID, &a.FullName, &a.DefaultBranch, &a.Removed, &a.LiveDeployment, &a.Slug)
+	err := r.Scan(&a.ID, &a.InstallationID, &a.GitHubRepoID, &a.FullName, &a.DefaultBranch, &a.Removed, &a.LiveDeployment, &a.Slug, &a.AccessMode)
 	return a, err
 }
 

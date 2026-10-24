@@ -71,9 +71,13 @@ resource "aws_ecs_task_definition" "authproxy" {
       { name = "FOYR_APPS_DOMAIN", value = var.apps_domain },
       { name = "FOYR_ROUTES_URL", value = "http://${aws_service_discovery_service.foyrd.name}.${aws_service_discovery_private_dns_namespace.platform.name}:${local.foyrd_internal_port}/internal/routes" },
       { name = "FOYR_APPS_NAMESPACE", value = aws_service_discovery_private_dns_namespace.apps.name },
+      { name = "FOYR_FOYRD_URL", value = "http://${aws_service_discovery_service.foyrd.name}.${aws_service_discovery_private_dns_namespace.platform.name}:${local.foyrd_internal_port}" },
+      { name = "FOYR_AUTH_URL", value = "https://${local.auth_domain}" },
     ]
     secrets = [
       { name = "FOYR_INTERNAL_TOKEN", valueFrom = "arn:aws:ssm:${var.region}:${local.account_id}:parameter/foyr/platform/${local.foyrd_secrets.FOYR_INTERNAL_TOKEN}" },
+      # Only the public half: authproxy can check sessions but never make one.
+      { name = "FOYR_SESSION_PUBLIC_KEY", valueFrom = "arn:aws:ssm:${var.region}:${local.account_id}:parameter/foyr/platform/session-public-key" },
     ]
     logConfiguration = {
       logDriver = "awslogs"

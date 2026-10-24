@@ -36,6 +36,16 @@ scripts/founder-key.sh
 copies the key to your clipboard and opens the page; paste it into the box (a login lasts 24 hours; 5 attempts lock your address out for 15 minutes; the key stays on the clipboard for 30 seconds).
 Locally: start the `foyrd-founder` preview (`.claude/launch.json`, port 8090, local test key in that file).
 
+## Login (ADR-035, once)
+Local walkthrough: docs/dev/login.md. To switch it on in AWS:
+1. Create a Resend API key with sending access and save it in `~/.config/foyr/resend-api-key`.
+2. `scripts/platform-secrets.sh` (makes `~/.config/foyr/session.{key,pub}` the first time and copies all three keys into SSM).
+3. `cd infra && tofu plan -out=tfplan`, review, `tofu apply tfplan` (creates the `auth.`/`app.` certificate, nothing else changes yet).
+4. `tofu output platform_hosts_validation_records`: add those CNAME records for `foyr.online` at GoDaddy. Wait until the certificate shows as issued in ACM.
+5. Set `platform_hosts_live = true` in `infra/terraform.tfvars`, plan, apply (attaches the certificate, sends `auth.` and `app.` to foyrd).
+6. `tofu output platform_hosts_cnames`: add the `auth` and `app` CNAME records at GoDaddy.
+7. Merge to `main` (or run **Deploy platform**). Then on the founder page open an app, make it private, invite yourself, and open its URL in a private window.
+
 ## Terms
 
 **RDS**: AWS runs Postgres for us: backups, patches, disk.

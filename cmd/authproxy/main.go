@@ -43,9 +43,20 @@ func run() error {
 			HTTP: &http.Client{Timeout: 5 * time.Second}, Table: table, Log: log}).Run(ctx)
 	}
 
+	handler := proxy.NewHandler(cfg.AppsDomain, table)
+	if cfg.AuthOn() {
+		client := &http.Client{Timeout: 5 * time.Second}
+		handler.Access = &proxy.Access{}
+		handler.Auth = &proxy.Auth{PublicKey: cfg.SessionPublicKey, AuthURL: cfg.AuthURL,
+			Exchanger: &proxy.HTTPExchanger{BaseURL: cfg.FoyrdURL, Token: cfg.Token, HTTP: client}}
+		go (&proxy.AccessPoller{URL: cfg.FoyrdURL + "/internal/access", Token: cfg.Token, HTTP: client,
+			Access: handler.Access, Log: log}).Run(ctx)
+		log.Info("login checks on", "auth_url", cfg.AuthURL)
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           obs.RequestID(log, proxy.NewHandler(cfg.AppsDomain, table)),
+		Handler:           obs.RequestID(log, handler),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
