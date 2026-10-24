@@ -1,0 +1,7 @@
+{{define "verify.html"}}{{template "head" .}}
+<h1>{{if .App}}Continue to {{.App}}{{else}}Continue{{end}}</h1>
+<p>Press the button to finish signing in.</p>
+<form method="post" action="/login/verify">
+<input type="hidden" name="t" value="{{.T}}"><input type="hidden" name="app" value="{{.App}}"><input type="hidden" name="return" value="{{.Return}}">
+<button autofocus>{{if .App}}Continue to {{.App}}{{else}}Continue{{end}}</button></form>
+{{template "foot"}}{{end}}

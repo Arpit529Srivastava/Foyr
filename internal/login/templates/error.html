@@ -1,0 +1,5 @@
+{{define "error.html"}}{{template "head" .}}
+<h1>This link has expired</h1>
+<p>This sign-in link has expired or was already used. Links work once, for 15 minutes.</p>
+<p style="margin:0"><a href="/login{{if .App}}?app={{.App}}&amp;return={{.Return}}{{end}}">Get a new link</a></p>
+{{template "foot"}}{{end}}

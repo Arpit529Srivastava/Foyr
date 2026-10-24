@@ -1,0 +1,9 @@
+{{define "page.html"}}{{template "head" .}}
+<h1>{{if .App}}Sign in to {{.App}}{{else}}Sign in{{end}}</h1>
+<p>Enter your email and we'll send you a link. No password.</p>
+{{if .Error}}<p class="err" role="alert">{{.Error}}</p>{{end}}
+<form method="post" action="/login">
+<input type="hidden" name="app" value="{{.App}}"><input type="hidden" name="return" value="{{.Return}}">
+<input name="email" type="email" autocomplete="email" required autofocus aria-label="Email" placeholder="you@example.com">
+<button>Email me a link</button></form>
+{{template "foot"}}{{end}}

@@ -16,6 +16,7 @@ import (
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
 	"github.com/Arpit529Srivastava/Foyr/internal/store"
 	"github.com/Arpit529Srivastava/Foyr/internal/ui"
+	"github.com/Arpit529Srivastava/Foyr/internal/web"
 )
 
 // CookieName is host-only and HTTPS-only by the __Host- prefix rules.
@@ -142,12 +143,12 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log := obs.Logger(r.Context())
-	if !sameOrigin(r) {
+	if !web.SameOrigin(r) {
 		log.Warn("founder login refused: cross-site post", "origin", r.Header.Get("Origin"))
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	ip, now := clientIP(r), h.now()
+	ip, now := web.ClientIP(r), h.now()
 	if ok, wait := h.lim.begin(ip, now); !ok {
 		log.Warn("founder login refused: rate limited", "ip", ip)
 		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
@@ -176,7 +177,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
-	if !sameOrigin(r) {
+	if !web.SameOrigin(r) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
