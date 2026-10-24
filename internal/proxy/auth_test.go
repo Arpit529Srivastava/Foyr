@@ -264,6 +264,31 @@ func TestRevokedAndRemoved(t *testing.T) {
 	}
 }
 
+// A person who just signed in is a member in foyrd before authproxy's next poll knows it.
+func TestFreshSessionWaitsForTheSnapshot(t *testing.T) {
+	g := newAuthRig(t)
+	sign := func(iat time.Time) string {
+		return authn.Sign(g.priv, authn.Claims{SID: "s1", UserID: 99, Email: "new@example.com", Slug: "crm",
+			Iat: iat.Unix(), Exp: time.Now().Add(time.Hour).Unix()})
+	}
+	w := g.do("GET", "crm."+testDomain, "/", withHeader("Accept", "text/html"), withCookie(testCookie+"="+sign(time.Now().Add(-2*time.Second))))
+	if w.Code != http.StatusServiceUnavailable || w.Header().Get("Retry-After") == "" ||
+		!strings.Contains(w.Body.String(), `http-equiv="refresh"`) || strings.Contains(w.Body.String(), "have access") {
+		t.Errorf("fresh non-member: %d %s; want a self-refreshing 503, not a 403", w.Code, w.Body)
+	}
+	// Once the snapshot knows the member, the same session gets in.
+	g.access.Set(authn.AccessSnapshot{Apps: []authn.AppAccess{{Slug: "crm", Mode: "private", Members: map[int64]string{99: "member"}}}})
+	if w := g.do("GET", "crm."+testDomain, "/", withCookie(testCookie+"="+sign(time.Now().Add(-2*time.Second)))); w.Code != http.StatusOK {
+		t.Errorf("after the snapshot caught up: %d, want 200", w.Code)
+	}
+	// An old session of someone not on the app is a plain 403, with no refresh loop.
+	g.access.Set(authn.AccessSnapshot{Apps: []authn.AppAccess{{Slug: "crm", Mode: "private", Members: map[int64]string{}}}})
+	w = g.do("GET", "crm."+testDomain, "/", withHeader("Accept", "text/html"), withCookie(testCookie+"="+sign(time.Now().Add(-time.Hour))))
+	if w.Code != http.StatusForbidden || strings.Contains(w.Body.String(), "refresh") {
+		t.Errorf("old non-member: %d %s; want a plain 403", w.Code, w.Body)
+	}
+}
+
 func TestUnknownAppInSnapshotIsPrivate(t *testing.T) {
 	g := newAuthRig(t)
 	g.access.Set(authn.AccessSnapshot{}) // loaded, but knows no apps yet

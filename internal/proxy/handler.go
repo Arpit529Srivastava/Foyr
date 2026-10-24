@@ -167,18 +167,23 @@ func page(w http.ResponseWriter, status int, title, body string) {
 
 // pageHTML is page with body as safe HTML blocks (paragraphs, forms); callers escape whatever they interpolate.
 func pageHTML(w http.ResponseWriter, status int, title, body string) {
+	pageWith(w, status, title, "", body)
+}
+
+// pageWith is pageHTML with extra markup for the head, such as a refresh.
+func pageWith(w http.ResponseWriter, status int, title, head, body string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(status)
-	fmt.Fprintf(w, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+	fmt.Fprintf(w, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">%[4]s
 <title>%[1]s · Foyr</title><style>
 body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0b0c;color:#ededed;font:16px/1.5 system-ui,-apple-system,sans-serif}
 main{max-width:30rem;padding:2rem}p.k{color:#8a8a8f;font:12px ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase}
 h1{font-size:1.75rem;margin:.25rem 0 .75rem}p{color:#b4b4b8}a{color:#ffd27a}
 button{font:inherit;cursor:pointer;border-radius:999px;border:1px solid #484848;background:transparent;color:#ededed;padding:.5rem 1rem}
 </style></head><body><main><p class="k">Foyr · %[3]d</p><h1>%[1]s</h1>%[2]s</main></body></html>`,
-		html.EscapeString(title), body, status)
+		html.EscapeString(title), body, status, head)
 }
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)

@@ -25,7 +25,7 @@ func TestSignVerify(t *testing.T) {
 	pub, priv := testKeys(t)
 	otherPub, otherPriv := testKeys(t)
 	now := time.Unix(1_800_000_000, 0)
-	c := Claims{SID: "s1", UserID: 7, Email: "ana@example.com", Slug: "crm", Exp: now.Add(time.Hour).Unix()}
+	c := Claims{SID: "s1", UserID: 7, Email: "ana@example.com", Slug: "crm", Iat: now.Unix(), Exp: now.Add(time.Hour).Unix()}
 	tok := Sign(priv, c)
 
 	got, err := Verify(pub, tok, now)
@@ -67,7 +67,7 @@ func TestSignVerify(t *testing.T) {
 
 func TestVerifyKeepsClaimsJSONKeys(t *testing.T) {
 	_, priv := testKeys(t)
-	tok := Sign(priv, Claims{SID: "s", UserID: 1, Email: "a@b.c", Slug: "x", Exp: 5})
+	tok := Sign(priv, Claims{SID: "s", UserID: 1, Email: "a@b.c", Slug: "x", Iat: 1, Exp: 5})
 	raw, err := base64.RawURLEncoding.DecodeString(strings.Split(tok, ".")[1])
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestVerifyKeepsClaimsJSONKeys(t *testing.T) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		t.Fatal(err)
 	}
-	for _, k := range []string{"sid", "uid", "email", "app", "exp"} {
+	for _, k := range []string{"sid", "uid", "email", "app", "iat", "exp"} {
 		if _, ok := m[k]; !ok {
 			t.Errorf("payload lacks key %q: %s", k, raw)
 		}
@@ -152,5 +152,24 @@ func TestParseKeys(t *testing.T) {
 		if _, err := ParsePublicKey(bad); err == nil {
 			t.Errorf("ParsePublicKey(%q) accepted", bad)
 		}
+	}
+}
+
+func TestNewKeyPair(t *testing.T) {
+	seed1, pub1 := NewKeyPair()
+	seed2, _ := NewKeyPair()
+	if seed1 == seed2 {
+		t.Error("two key pairs share a seed")
+	}
+	priv, err := ParsePrivateKey(seed1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub, err := ParsePublicKey(pub1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Verify(pub, Sign(priv, Claims{Exp: 10}), time.Unix(0, 0)); err != nil {
+		t.Errorf("the public half does not match the seed: %v", err)
 	}
 }

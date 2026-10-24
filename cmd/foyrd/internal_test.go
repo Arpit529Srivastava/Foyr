@@ -162,6 +162,9 @@ func TestInternalExchangeIssuesAVerifiableToken(t *testing.T) {
 	if err != nil || claims.Slug != slug || claims.Email != "ana@example.com" || claims.SID == "" || claims.UserID == 0 {
 		t.Fatalf("claims = %+v, %v", claims, err)
 	}
+	if d := time.Since(time.Unix(claims.Iat, 0)); d < 0 || d > 5*time.Second {
+		t.Errorf("Iat = %d is not the time of the exchange", claims.Iat)
+	}
 	if claims.Exp != out.ExpiresAt.Unix() || out.ExpiresAt.Before(time.Now().Add(6*24*time.Hour)) {
 		t.Errorf("expiry %v does not match the 7-day session (exp %d)", out.ExpiresAt, claims.Exp)
 	}

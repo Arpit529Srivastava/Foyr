@@ -17,6 +17,9 @@ import (
 // SessionCookie is host-only and HTTPS-only by the __Host- prefix rules, so every app host has its own.
 const SessionCookie = "__Host-foyr_session"
 
+// freshSession is how long after sign-in a missing membership is put down to a stale snapshot.
+const freshSession = 20 * time.Second
+
 const (
 	callbackPath = "/__foyr/callback"
 	logoutPath   = "/__foyr/logout"
@@ -97,6 +100,12 @@ func (h *Handler) authorize(w http.ResponseWriter, r *http.Request, slug string)
 		return id, false
 	case id != nil:
 		return id, false
+	case signedIn && a.now().Sub(time.Unix(claims.Iat, 0)) < freshSession:
+		// Just signed in: foyrd knows the new member, our snapshot catches up within a poll or two.
+		w.Header().Set("Retry-After", "2")
+		pageWith(w, http.StatusServiceUnavailable, "Finishing sign-in", `<meta http-equiv="refresh" content="2">`,
+			"<p>One moment. This page reloads by itself.</p>")
+		return nil, true
 	case signedIn: // genuine session, but not a member of this app
 		pageHTML(w, http.StatusForbidden, "No access",
 			"<p>"+html.EscapeString("You don't have access to "+slug+". Ask its owner to invite "+claims.Email+".")+"</p>"+

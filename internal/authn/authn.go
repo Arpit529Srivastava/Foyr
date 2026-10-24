@@ -27,12 +27,13 @@ const (
 	signContext = "foyr session|"
 )
 
-// Claims is what a session token says. Exp is Unix seconds.
+// Claims is what a session token says. Iat and Exp are Unix seconds.
 type Claims struct {
 	SID    string `json:"sid"`
 	UserID int64  `json:"uid"`
 	Email  string `json:"email"`
 	Slug   string `json:"app"`
+	Iat    int64  `json:"iat,omitempty"` // when the session started, Unix seconds
 	Exp    int64  `json:"exp"`
 }
 
@@ -117,6 +118,16 @@ func ParsePublicKey(b64 string) (ed25519.PublicKey, error) {
 		return nil, errors.New("authn: session public key must be 32 bytes in base64")
 	}
 	return ed25519.PublicKey(b), nil
+}
+
+// NewKeyPair makes a session signing key: the 32-byte seed (FOYR_SESSION_KEY) and the public key
+// (FOYR_SESSION_PUBLIC_KEY), both in standard base64.
+func NewKeyPair() (seed, public string) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(fmt.Sprintf("authn: no randomness: %v", err))
+	}
+	return base64.StdEncoding.EncodeToString(priv.Seed()), base64.StdEncoding.EncodeToString(pub)
 }
 
 // AppAccess is who may open one app. Members maps user id to role.
