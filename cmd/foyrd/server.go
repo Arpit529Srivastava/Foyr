@@ -10,6 +10,7 @@ import (
 
 	"github.com/Arpit529Srivastava/Foyr/internal/config"
 	"github.com/Arpit529Srivastava/Foyr/internal/dashboard"
+	"github.com/Arpit529Srivastava/Foyr/internal/favicon"
 	"github.com/Arpit529Srivastava/Foyr/internal/founder"
 	"github.com/Arpit529Srivastava/Foyr/internal/github"
 	"github.com/Arpit529Srivastava/Foyr/internal/health"
@@ -23,11 +24,12 @@ import (
 func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", health.Handler)
+	favicon.Register(mux)
 	sender := mailer(cfg, log)
-	fh := &founder.Handler{Data: st, Key: cfg.FounderKey, AppsDomain: cfg.AppsDomain, AppsScheme: appsScheme(cfg), Mail: sender}
+	fh := &founder.Handler{Data: st, Key: cfg.FounderKey, AppsDomain: cfg.AppsDomain, AppsScheme: appsScheme(cfg), Mail: sender, SiteURL: siteURL(cfg)}
 	fh.Register(mux)
 	if cfg.LoginOn() {
-		(&login.Handler{Store: st, Mail: sender, AuthURL: cfg.AuthURL, AppsDomain: cfg.AppsDomain}).Register(mux)
+		(&login.Handler{Store: st, Mail: sender, AuthURL: cfg.AuthURL, AppsDomain: cfg.AppsDomain, SiteURL: siteURL(cfg)}).Register(mux)
 	}
 	// The customer dashboard borrows the founder sign-in until customer login exists.
 	(&dashboard.Handler{Data: st, Allowed: fh.SignedIn, SignIn: "/founder", AppsDomain: cfg.AppsDomain}).Register(mux)
@@ -58,6 +60,19 @@ func appsScheme(cfg *config.Config) string {
 		return "http"
 	}
 	return "https"
+}
+
+// siteURL is the public site, https://foyr.online, taken from the auth URL (https://auth.foyr.online). It hosts
+// the email banner image. Empty in development, so local emails carry no image.
+func siteURL(cfg *config.Config) string {
+	u, err := url.Parse(cfg.AuthURL)
+	if err != nil || u.Scheme != "https" {
+		return ""
+	}
+	if host, ok := strings.CutPrefix(u.Host, "auth."); ok {
+		return "https://" + host
+	}
+	return ""
 }
 
 // onPush queues a deployment for pushes to an app's default branch.

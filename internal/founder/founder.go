@@ -62,6 +62,7 @@ type Handler struct {
 	AppsDomain string      // for links to live apps
 	AppsScheme string      // "https" unless developing locally
 	Mail       mail.Sender // sends invites; nil saves them without an email
+	SiteURL    string      // https://foyr.online, where the email banner image lives; empty in development
 	Now        func() time.Time
 	FailDelay  time.Duration // 0 means defaultFailDelay; negative turns it off (tests)
 	lim        limiter

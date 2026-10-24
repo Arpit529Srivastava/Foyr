@@ -160,3 +160,20 @@ func TestParseStatic(t *testing.T) {
 		t.Fatal("want error")
 	}
 }
+
+// Error pages on customer hosts carry the icon inside the page: /favicon.svg there belongs to the customer's app.
+func TestErrorPagesCarryTheFaviconInline(t *testing.T) {
+	h := newProxy(t, map[string]string{"foyr-hello": "127.0.0.1:1"})
+	for name, rec := range map[string]*httptest.ResponseRecorder{
+		"no such app":     do(h, "missing.apps.foyr.online", "/", nil),
+		"app unreachable": do(h, "foyr-hello.apps.foyr.online", "/", nil),
+	} {
+		body := rec.Body.String()
+		if !strings.Contains(body, `<link rel="icon" href="data:image/svg+xml,`) {
+			t.Errorf("%s (status %d): no inline favicon", name, rec.Code)
+		}
+		if strings.Contains(body, `href="/favicon`) {
+			t.Errorf("%s: links a route that belongs to the customer's app", name)
+		}
+	}
+}

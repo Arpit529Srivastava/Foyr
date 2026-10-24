@@ -167,3 +167,27 @@ func TestHint(t *testing.T) {
 		}
 	}
 }
+
+type noAccounts struct{ fake }
+
+func (noAccounts) ListInstallations(context.Context) ([]store.Installation, error) { return nil, nil }
+
+// Every page head names the icon, so tabs show the Foyr mark and not a grey globe.
+func TestEveryPageLinksTheFavicon(t *testing.T) {
+	empty := http.NewServeMux()
+	(&Handler{Data: noAccounts{}, Allowed: func(*http.Request) bool { return true }, SignIn: "/founder", AppsDomain: "apps.test",
+		Now: func() time.Time { return now }}).Register(empty)
+	for name, w := range map[string]*httptest.ResponseRecorder{
+		"account page":   get(handler(true), "/dashboard/acme"),
+		"app overview":   get(handler(true), "/dashboard/acme/crm"),
+		"not found page": get(handler(true), "/dashboard/nope"),
+		"no accounts":    get(empty, "/dashboard"),
+	} {
+		body := w.Body.String()
+		for _, want := range []string{`rel="icon"`, `href="/favicon.svg"`, `href="/favicon.png"`, `rel="apple-touch-icon"`} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s (status %d) lacks %s", name, w.Code, want)
+			}
+		}
+	}
+}

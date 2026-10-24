@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Arpit529Srivastava/Foyr/internal/favicon"
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
 	"github.com/Arpit529Srivastava/Foyr/internal/slug"
 )
@@ -172,6 +173,7 @@ func pageHTML(w http.ResponseWriter, status int, title, body string) {
 
 // pageWith is pageHTML with extra markup for the head, such as a refresh.
 func pageWith(w http.ResponseWriter, status int, title, head, body string) {
+	head = favicon.DataLink() + head
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")

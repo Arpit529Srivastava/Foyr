@@ -55,3 +55,11 @@ Without login keys (`FOYR_SESSION_PUBLIC_KEY` unset) authproxy forwards everythi
 `go test ./cmd/... ./internal/...` with `FOYR_TEST_DATABASE_URL` set (docs/dev/database.md) covers every rule above:
 tokens are single use and stored hashed, a GET never spends the link, open-redirect return paths become `/`,
 visitor-sent `X-Foyr-*` headers and the session cookie never reach the app, and removed members are refused after one poll.
+
+## The emails
+The sign-in and invite emails use the same design as the waitlist emails (`site/lib/emails/layout.ts`), rebuilt in Go in
+`internal/mail/layout.go`. To look at them in a browser (screenshots are in `docs/website/emails/`):
+```bash
+mkdir -p /tmp/previews && FOYR_EMAIL_PREVIEW_DIR=/tmp/previews go test -run TestWritePreviews ./internal/mail && open /tmp/previews/login.html /tmp/previews/invite.html
+```
+The banner image comes from the public site (`/email/banner.jpg`); without a public site (local development) the emails carry no image.

@@ -37,6 +37,7 @@ type Handler struct {
 	Mail       mail.Sender
 	AuthURL    string // https://auth.<PLATFORM_DOMAIN>, or http://localhost:<port> in development
 	AppsDomain string // APPS_DOMAIN, with a port in development
+	SiteURL    string // https://foyr.online, where the email banner image lives; empty in development
 	Now        func() time.Time
 
 	byIP, byEmail window
@@ -147,14 +148,7 @@ func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 // of members only.
 func (h *Handler) sendLink(ctx context.Context, slug, email, raw, ret string) {
 	link := h.authURL().String() + "/login/verify?" + url.Values{"t": {raw}, "app": {slug}, "return": {ret}}.Encode()
-	m := mail.Message{
-		To:      email,
-		Subject: "Sign in to " + slug,
-		Text: "Sign in to " + slug + ":\n\n" + link + "\n\n" +
-			"This link works once, for 15 minutes. If you didn't ask for it, ignore this email.\n",
-		HTML: `<p>Sign in to <b>` + template.HTMLEscapeString(slug) + `</b>:</p><p><a href="` + template.HTMLEscapeString(link) +
-			`">Sign in</a></p><p style="color:#666">This link works once, for 15 minutes. If you didn't ask for it, ignore this email.</p>`,
-	}
+	m := mail.LoginMessage(email, slug, link, h.SiteURL)
 	log := obs.Logger(ctx)
 	ctx = context.WithoutCancel(ctx)
 	h.sending.Add(1)
