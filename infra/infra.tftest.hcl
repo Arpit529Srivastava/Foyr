@@ -316,7 +316,7 @@ run "control_plane" {
   assert {
     condition = alltrue([
       for e in jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].environment : !strcontains(e.name, "SECRET") && !strcontains(e.name, "TOKEN") && !strcontains(e.name, "PRIVATE_KEY") && !strcontains(e.name, "FOUNDER_KEY") && e.name != "FOYR_DATABASE_URL"
-    ]) && length(jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].secrets) == 5
+    ]) && length(jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].secrets) == 7
     error_message = "foyrd's secrets come from SSM, never plain environment values"
   }
 
@@ -334,5 +334,76 @@ run "control_plane" {
       for s in data.aws_iam_policy_document.foyrd.statement : alltrue([for r in s.resources : endswith(r, "/d-*")]) if contains(s.actions, "ecs:DeleteService")
     ])
     error_message = "foyrd may only create and delete app services (d-*), never platform services"
+  }
+}
+
+# Magic-link login (ADR-035): keys and the Resend key come from SSM, the auth and app hosts reach foyrd.
+run "login_before_dns" {
+  command = plan
+
+  assert {
+    condition     = length(aws_acm_certificate_validation.platform_hosts) == 0 && length(aws_lb_listener_certificate.platform_hosts) == 0
+    error_message = "the new certificate is not attached until its DNS records exist (platform_hosts_live)"
+  }
+
+  assert {
+    condition     = flatten([for c in aws_lb_listener_rule.api.condition : [for h in c.host_header : tolist(h.values)]]) == ["api.foyr.online"]
+    error_message = "before the certificate is live, only api. goes to foyrd"
+  }
+}
+
+run "login_live" {
+  command = plan
+
+  variables {
+    platform_hosts_live = true
+  }
+
+  assert {
+    condition     = aws_acm_certificate.platform_hosts.domain_name == "auth.foyr.online" && aws_acm_certificate.platform_hosts.subject_alternative_names == toset(["app.foyr.online"]) && aws_acm_certificate.platform_hosts.validation_method == "DNS"
+    error_message = "one certificate covers auth. and app."
+  }
+
+  assert {
+    condition     = length(aws_lb_listener_certificate.platform_hosts) == 1
+    error_message = "the certificate is attached to the HTTPS listener by SNI"
+  }
+
+  assert {
+    condition = alltrue([for h in ["api.foyr.online", "auth.foyr.online", "app.foyr.online"] : contains(
+      flatten([for c in aws_lb_listener_rule.api.condition : [for host in c.host_header : tolist(host.values)]]), h
+    )])
+    error_message = "api., auth. and app. all go to foyrd"
+  }
+}
+
+run "login_secrets" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      for name, path in { FOYR_SESSION_KEY = "session-key", FOYR_RESEND_API_KEY = "resend-api-key" } :
+      length([for x in jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].secrets : x if x.name == name && endswith(x.valueFrom, "parameter/foyr/platform/${path}")]) == 1
+    ])
+    error_message = "foyrd reads the session key and the Resend key from SSM, not from plain values"
+  }
+
+  assert {
+    condition = alltrue([
+      for e in jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].environment : e.name != "FOYR_SESSION_KEY" && e.name != "FOYR_RESEND_API_KEY"
+    ]) && length([for e in jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].environment : e if e.name == "FOYR_AUTH_URL" && e.value == "https://auth.foyr.online"]) == 1 && length([for e in jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].environment : e if e.name == "FOYR_MAIL_FROM" && e.value == "Foyr <login@mail.foyr.online>"]) == 1
+    error_message = "foyrd gets the auth URL and mail sender as plain settings and no key as plain text"
+  }
+
+  assert {
+    condition = length([for x in jsondecode(aws_ecs_task_definition.authproxy.container_definitions)[0].secrets : x if x.name == "FOYR_SESSION_PUBLIC_KEY" && endswith(x.valueFrom, "parameter/foyr/platform/session-public-key")]) == 1 && alltrue([
+      for x in jsondecode(aws_ecs_task_definition.authproxy.container_definitions)[0].secrets : !endswith(x.valueFrom, "/session-key") && !endswith(x.valueFrom, "/resend-api-key")
+    ])
+    error_message = "authproxy gets only the public key, never the signing key or the Resend key"
+  }
+
+  assert {
+    condition     = length([for e in jsondecode(aws_ecs_task_definition.authproxy.container_definitions)[0].environment : e if e.name == "FOYR_AUTH_URL" && e.value == "https://auth.foyr.online"]) == 1 && length([for e in jsondecode(aws_ecs_task_definition.authproxy.container_definitions)[0].environment : e if e.name == "FOYR_FOYRD_URL" && e.value == "http://foyrd.platform.foyr.internal:9090"]) == 1
+    error_message = "authproxy knows where to send visitors and where foyrd's private listener is"
   }
 }

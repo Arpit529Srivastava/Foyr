@@ -63,3 +63,16 @@ output "api_name_servers" {
   description = "Add these as NS records for api at GoDaddy (ADR-032)."
   value       = aws_route53_zone.api.name_servers
 }
+
+output "platform_hosts_validation_records" {
+  description = "Add these CNAME records at GoDaddy for foyr.online so the auth. and app. certificate is issued (ADR-035)."
+  value = [
+    for o in aws_acm_certificate.platform_hosts.domain_validation_options :
+    { host = o.domain_name, name = o.resource_record_name, type = o.resource_record_type, value = o.resource_record_value }
+  ]
+}
+
+output "platform_hosts_cnames" {
+  description = "After the certificate is live, point auth. and app. at the load balancer with CNAME records at GoDaddy."
+  value       = { for h in local.platform_hosts : h => aws_lb.apps.dns_name }
+}

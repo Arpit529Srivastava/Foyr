@@ -10,6 +10,17 @@ umask 077
 # The founder page key (ADR-033) is made once and kept next to the other secrets.
 FOUNDER_KEY_FILE="$HOME/.config/foyr/founder-key"
 [ -s "$FOUNDER_KEY_FILE" ] || { openssl rand -hex 32 | tr -d '\n' > "$FOUNDER_KEY_FILE"; echo "made $FOUNDER_KEY_FILE"; }
+# The session signing key (ADR-035) is made once. macOS's openssl cannot make Ed25519 keys, so a Go command does.
+SESSION_KEY_FILE="$HOME/.config/foyr/session.key"; SESSION_PUB_FILE="$HOME/.config/foyr/session.pub"
+if [ ! -s "$SESSION_KEY_FILE" ] || [ ! -s "$SESSION_PUB_FILE" ]; then
+  pair="$(cd "$(dirname "$0")/.." && go run ./cmd/sessionkey)"
+  printf '%s' "$pair" | sed -n 's/^seed=//p' | tr -d '\n' > "$SESSION_KEY_FILE"
+  printf '%s' "$pair" | sed -n 's/^public=//p' | tr -d '\n' > "$SESSION_PUB_FILE"
+  unset pair; echo "made $SESSION_KEY_FILE and $SESSION_PUB_FILE"
+fi
+# Resend's API key: create one at resend.com/api-keys (sending access) and save it in this file.
+RESEND_KEY_FILE="$HOME/.config/foyr/resend-api-key"
+[ -s "$RESEND_KEY_FILE" ] || { echo "missing $RESEND_KEY_FILE (a Resend API key with sending access; docs/dev/platform.md)" >&2; exit 1; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 printf '%s' "$FOYR_GITHUB_WEBHOOK_SECRET" > "$tmp/webhook"
 printf '%s' "$FOYR_INTERNAL_TOKEN" > "$tmp/internal"
@@ -18,3 +29,6 @@ put github-webhook-secret "$tmp/webhook"
 put internal-token "$tmp/internal"
 put github-private-key "$FOYR_GITHUB_PRIVATE_KEY_PATH"
 put founder-key "$FOUNDER_KEY_FILE"
+put session-key "$SESSION_KEY_FILE"
+put session-public-key "$SESSION_PUB_FILE"
+put resend-api-key "$RESEND_KEY_FILE"

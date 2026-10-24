@@ -445,3 +445,22 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** One language, one deploy, and the security work already done; it ships the UI in days, which matters before the YC deadline. It can move to a client-side app later if the dashboard needs heavy client state.
 
 **Consequences:** The `web` ECR repository stays unused for now. Dashboard changes deploy with foyrd.
+
+## ADR-035: Magic-link login
+**Date:** 2026-10-25 · **Status:** Accepted · **Builds on:** ADR-006, ADR-026, ADR-034 · **Spec:** docs/superpowers/plans/2026-10-19-login.md
+
+**Decision:**
+- **Flow:** a visitor of a private app is sent by authproxy to `auth.<PLATFORM_DOMAIN>/login?app=<slug>`, enters an email, gets a link, presses **Continue**, and lands on `<slug>.<APPS_DOMAIN>/__foyr/callback?code=…`. authproxy swaps the one-time code at foyrd (private listener, internal token) for a signed session and sets `__Host-foyr_session` (host-only, HttpOnly, Secure, SameSite=Lax). Every app host has its own cookie, which is what makes custom domains work later (system-design 4c).
+- **Resend, not SES, for now.** No SES sandbox wait before the deadline. Mail goes from `login@mail.<PLATFORM_DOMAIN>`, the subdomain already verified in Resend. Locally the log sender prints the email instead (only with a `http://localhost` auth URL).
+- **Our own session token** (`v1.<payload>.<Ed25519 signature>`, ~60 lines in `internal/authn`) instead of a JWT library: one algorithm, no `alg` header to confuse, signature over a fixed context string. foyrd holds the seed (`FOYR_SESSION_KEY`); authproxy holds only the public key. Sessions last 7 days and carry `iat` and `exp`.
+- **The link opens a button, not a login.** Mail scanners (Outlook, Gmail) prefetch links, so a GET of `/login/verify` never touches the token; only the POST does. Tokens (15 minutes) and codes (60 seconds) are 32 random bytes, stored only as SHA-256, single use, spent with one `UPDATE … WHERE used_at IS NULL`. The verify page widens CSP `form-action` to the apps domain because Chrome applies it to the redirect after a post.
+- **The form never says who is a member.** A member, a stranger and an unknown app get byte-identical answers; the email is sent in the background so response time doesn't tell either. 3 emails per address and 10 posts per IP per 15 minutes.
+- **Access:** per app `private` (default) or `public`; roles `owner > admin > member > viewer`. Apps that existed when migration 005 ran became `public`, so foyr-hello keeps serving until the founder switches it. authproxy polls `/internal/access` every 3 s (like routes) and keeps the last good snapshot if foyrd is down; removals and revoked sessions apply within one poll. An app the snapshot doesn't know yet is treated as private. A session younger than 20 s whose user isn't in the snapshot yet gets a self-refreshing 503 instead of a 403 (found by running the flow locally: the first page after login was a 403).
+- **What the app gets:** `X-Foyr-User-Id`, `X-Foyr-Email`, `X-Foyr-Role`; visitor-sent `X-Foyr-*` headers and the session cookie never reach it. Signed-in non-members of a public app get role `viewer`.
+- **Hosts:** `auth.` and `app.` share one ACM certificate and go to foyrd through the existing load balancer. `foyr.online` stays at GoDaddy, so the validation records and the two CNAMEs are added by hand; `platform_hosts_live` keeps the attach step out of the first apply so it doesn't block waiting for DNS.
+- **Keys:** `go run ./cmd/sessionkey` makes the pair (macOS's openssl cannot make Ed25519 keys); `scripts/platform-secrets.sh` keeps it in `~/.config/foyr/session.{key,pub}` and SSM `/foyr/platform/session-key`, `session-public-key`, `resend-api-key`.
+- Every state change writes its audit event in the same transaction: `invite.created`, `invite.revoked`, `member.removed`, `app.access_changed`, `user.signed_in`.
+
+**Why:** Login in front of every app is the product's wedge and the second part of the YC demo (push, live URL, login, invite).
+
+**Consequences:** Rotating the session key signs everyone out. A new foyrd needs the three SSM parameters before it deploys or its task won't start (the circuit breaker rolls back). Roles are stored and sent but not enforced beyond membership until Phase 2 (`hasPermission`). foyrd must be reachable from authproxy for new logins and removals; existing sessions keep working without it.

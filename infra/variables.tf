@@ -45,3 +45,15 @@ variable "github_app_id" {
   type        = string
   default     = "5261051"
 }
+
+variable "platform_domain" {
+  description = "PLATFORM_DOMAIN: the site, app., api. and auth. hosts (ADR-001, ADR-015)."
+  type        = string
+  default     = "foyr.online"
+}
+
+variable "platform_hosts_live" {
+  description = "Set true once the DNS validation records for auth. and app. exist at GoDaddy (see the platform_hosts_validation_records output): only then can the certificate be attached."
+  type        = bool
+  default     = false
+}

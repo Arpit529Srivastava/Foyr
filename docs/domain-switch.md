@@ -22,5 +22,5 @@ Things that were temporary until `foyr.online` was bought (ADR-021). The domain 
 - [x] `authproxy_static_routes` bridge removed in step 8c (ADR-032).
 
 ## Platform subdomains (ADR-032)
-- `api.foyr.online` is its own Route 53 zone (`api_domain` in `infra/variables.tf`), delegated with 4 NS records at GoDaddy. `auth.` and `app.` will follow the same pattern.
+- `api.foyr.online` is its own Route 53 zone (`api_domain` in `infra/variables.tf`), delegated with 4 NS records at GoDaddy. `auth.` and `app.` are different: they are plain CNAMEs at GoDaddy to the load balancer, with their certificate validated by CNAME records at GoDaddy (ADR-035, `platform_hosts_live` in `infra/variables.tf`). Login email is sent from `login@mail.foyr.online`, the subdomain verified in Resend (`FOYR_MAIL_FROM` in `infra/foyrd.tf`).
 - `scripts/founder-key.sh` opens `https://api.foyr.online/founder` by default (ADR-033); change it with `api_domain`.

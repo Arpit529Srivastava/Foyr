@@ -24,9 +24,9 @@ demo and lists what waits until after applying.
 
 ## Phase 1: Auth-as-a-service (~4 weeks)
 - [ ] Developer login with GitHub (ADR-023)
-- [ ] Magic-link login (SES) and sessions (ES256 JWT)
-- [ ] authproxy: session check, header stripping, identity headers, signed assertion
-- [ ] Per-app invites
+- [x] Magic-link login and sessions: code, tests and local run done (ADR-035; Resend and Ed25519 tokens instead of SES and JWT); live in AWS pending
+- [x] authproxy: session check, header stripping, identity headers (signed assertion later)
+- [x] Per-app invites (founder page, ADR-035)
 - [ ] `@foyr/auth` SDK: `getUser()`
 - [ ] Basic dashboard: apps list, deploy, CI-style deployment view (steps, timeline, logs, ADR-024), audit log
 - **Done when:** a deployed app has working login with zero auth code written by the user.
