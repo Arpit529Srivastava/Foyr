@@ -46,6 +46,12 @@ type Data interface {
 	Timeline(ctx context.Context, deploymentID int64) ([]store.DeploymentEvent, error)
 	ListAudit(ctx context.Context, f store.AuditFilter) ([]store.AuditEvent, error)
 
+	// Who may open an account's dashboard (ADR-036).
+	ListInstallations(ctx context.Context) ([]store.Installation, error)
+	ListAccountMembers(ctx context.Context, installationID int64) ([]store.AccountMember, error)
+	LinkAccountMember(ctx context.Context, installationID int64, email, role string, by store.Actor) (store.AccountMember, error)
+	UnlinkAccountMember(ctx context.Context, installationID, userID int64, by store.Actor) error
+
 	// Who may open an app (ADR-035).
 	ListMembers(ctx context.Context, appID int64) ([]store.Member, error)
 	ListInvites(ctx context.Context, appID int64) ([]store.Invite, error)
@@ -95,6 +101,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /founder/apps/{id}/invites/{iid}/revoke", h.guardPost(h.revokeInvite))
 	mux.HandleFunc("POST /founder/apps/{id}/members/{uid}/remove", h.guardPost(h.removeMember))
 	mux.HandleFunc("POST /founder/apps/{id}/access", h.guardPost(h.setAccess))
+	mux.HandleFunc("GET /founder/accounts", h.guard(h.accounts))
+	mux.HandleFunc("POST /founder/accounts/{id}/people", h.guardPost(h.linkPerson))
+	mux.HandleFunc("POST /founder/accounts/{id}/people/{uid}/remove", h.guardPost(h.unlinkPerson))
 }
 
 func (h *Handler) now() time.Time {

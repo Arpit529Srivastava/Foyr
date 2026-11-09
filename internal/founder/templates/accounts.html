@@ -1,0 +1,16 @@
+{{define "accounts.html"}}{{template "head" .}}{{template "frame" .}}
+<div class="ph rise"><div><h1>Accounts</h1><p>Who may sign in to the customer dashboard, and which GitHub account they see. Being invited to an app gives no dashboard access.</p></div></div>
+{{if .Error}}<p class="fail rise"><b>Not done</b>{{.Error}}</p>{{end}}
+{{range $i, $a := .Accounts}}<section class="card rise" style="animation-delay:{{delay $i 40}}ms;margin-bottom:14px"><h2>{{$a.Login}}</h2>
+<div class="scroll"><table><tr><th>Person</th><th>Role</th><th>Since</th><th></th></tr>
+{{range $a.People}}<tr><td>{{.Email}}</td><td class="n"><span class="chip">{{.Role}}</span></td><td class="n dim">{{since $.Now .CreatedAt}}</td>
+<td class="n"><form method="post" action="/founder/accounts/{{$a.ID}}/people/{{.UserID}}/remove"><button>Remove</button></form></td></tr>
+{{else}}<tr><td colspan="4" class="dim">No one can sign in to this account yet.</td></tr>{{end}}</table></div>
+<form method="post" action="/founder/accounts/{{$a.ID}}/people" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
+<input name="email" type="email" required aria-label="Email" placeholder="person@example.com" autocomplete="off"
+ style="flex:1;min-width:220px;background:#000;border:1px solid var(--line);color:var(--text);border-radius:14px;padding:11px 14px;font:inherit">
+<select name="role" aria-label="Role" style="background:#000;border:1px solid var(--line);color:var(--text);border-radius:14px;padding:11px 14px;font:inherit">
+{{range $.Roles}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+<button>Add person</button></form></section>
+{{else}}<section class="card rise"><p class="dim" style="margin:0">No GitHub account has installed Foyr yet.</p></section>{{end}}
+{{template "endframe" .}}{{template "foot"}}{{end}}

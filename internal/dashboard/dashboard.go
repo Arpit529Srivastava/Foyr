@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Arpit529Srivastava/Foyr/internal/mail"
@@ -49,9 +50,15 @@ type Handler struct {
 	SignIn     string                             // where everyone else is sent
 	AppsDomain string
 	AppsScheme string      // "https" unless developing locally
-	Mail       mail.Sender // sends invites; nil saves them without an email
+	Mail       mail.Sender // sends invites and sign-in links; nil saves invites without an email
 	SiteURL    string      // where the email banner image lives; empty in development
 	Now        func() time.Time
+
+	Auth    Auth   // customer sign-in; nil turns it off
+	DashURL string // https://app.<PLATFORM_DOMAIN>, or http://localhost:<port> in development
+
+	byIP, byEmail web.Window
+	sending       sync.WaitGroup
 }
 
 // Tab is one section of an app's page.
@@ -93,6 +100,12 @@ var pages = template.Must(template.New("").Funcs(template.FuncMap{
 
 // Register adds the routes to mux.
 func (h *Handler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET /{$}", h.signinRoute(h.root))
+	mux.HandleFunc("GET /dashboard/login", h.signinRoute(h.signinForm))
+	mux.HandleFunc("POST /dashboard/login", h.signinRoute(h.signinSubmit))
+	mux.HandleFunc("GET /dashboard/login/verify", h.signinRoute(h.verifyPage))
+	mux.HandleFunc("POST /dashboard/login/verify", h.signinRoute(h.verify))
+	mux.HandleFunc("POST /dashboard/logout", h.signinRoute(h.signOut))
 	mux.HandleFunc("GET /dashboard", h.guard(h.start))
 	mux.HandleFunc("GET /dashboard/{account}", h.guard(h.account))
 	mux.HandleFunc("GET /dashboard/{account}/{app}", h.guard(h.app))
@@ -113,13 +126,9 @@ func (h *Handler) now() time.Time {
 
 func (h *Handler) guard(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if h.Who == nil {
-			http.Redirect(w, r, h.SignIn, http.StatusSeeOther)
-			return
-		}
-		p, ok := h.Who(r)
+		p, ok := h.person(r)
 		if !ok {
-			http.Redirect(w, r, h.SignIn, http.StatusSeeOther)
+			http.Redirect(w, r, h.signInURL(r), http.StatusSeeOther)
 			return
 		}
 		next(w, withPerson(r, p))

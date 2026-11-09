@@ -83,6 +83,7 @@ h1{font-size:28px;font-weight:550;letter-spacing:-.03em;margin:0;display:flex;al
 .tabs i{width:5px;height:5px;border-radius:50%;background:var(--faint)}
 .preview{display:flex;gap:12px;align-items:flex-start;border:1px solid #f5a52433;background:linear-gradient(90deg,#f5a52412,transparent);border-radius:var(--r);padding:12px 16px;margin-bottom:18px;font-size:13.5px;color:var(--dim)}
 .preview b{color:var(--a2);font-weight:600}.preview svg{width:17px;height:17px;color:var(--a);flex:none;margin-top:1px}
+.menu form{margin:0}.menu .out{all:unset;box-sizing:border-box;display:flex;align-items:center;width:100%;padding:8px 10px;border-radius:8px;color:var(--dim);font:inherit;font-size:13.5px;cursor:pointer}.menu .out:hover{background:var(--raise);color:var(--text)}.menu .out:focus-visible{outline:2px solid var(--a)}
 .as-founder{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12.5px;color:var(--dim);background:#0d0a04;border-bottom:1px solid #f5a52426;padding:6px 12px}
 .as-founder a{color:var(--a2)}
 
@@ -125,7 +126,8 @@ aside{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:
 <details class="acct"><summary><span class="av">{{initial .S.Account.Login}}</span><span class="who"><b>{{.S.Account.Login}}</b><small>GitHub account</small></span>
 <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></summary>
 <div class="menu"><p>Accounts</p>{{range .S.Accounts}}<a href="/dashboard/{{.Login}}"{{if eq .ID $.S.Account.ID}} class="on"{{end}}><span class="av">{{initial .Login}}</span>{{.Login}}</a>{{end}}
-<hr><a class="add" href="https://github.com/apps" title="Install the Foyr GitHub App on another account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Connect another account</a></div></details>
+<hr><a class="add" href="https://github.com/apps" title="Install the Foyr GitHub App on another account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Connect another account</a>
+{{if not .Founder}}<hr><form method="post" action="/dashboard/logout"><button class="out">Sign out</button></form>{{end}}</div></details>
 <label class="find"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
 <input id="find" type="search" placeholder="Find an app" autocomplete="off" aria-label="Find an app"><kbd>⌘K</kbd></label>
 <nav class="side" aria-label="Account">

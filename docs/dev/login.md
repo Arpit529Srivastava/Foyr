@@ -63,3 +63,10 @@ The sign-in and invite emails use the same design as the waitlist emails (`site/
 mkdir -p /tmp/previews && FOYR_EMAIL_PREVIEW_DIR=/tmp/previews go test -run TestWritePreviews ./internal/mail && open /tmp/previews/login.html /tmp/previews/invite.html
 ```
 The banner image comes from the public site (`/email/banner.jpg`); without a public site (local development) the emails carry no image.
+
+## Customer sign-in to the dashboard (ADR-036)
+
+1. Run foyrd as above. Sign in at `http://localhost:8090/founder`, open **Accounts**, add an email to the account (owner), then **Sign out**.
+2. Open `http://localhost:8090/dashboard`. It sends you to `/dashboard/login`. Enter the email; the sign-in link is printed in foyrd's log (`/dashboard/login/verify?t=...`). Open it and press **Continue**.
+3. You see only that account, without the founder banner. **Sign out** is in the account menu.
+4. The founder and customer cookies share `localhost`, so sign the founder out first, as in step 1.

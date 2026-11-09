@@ -45,3 +45,23 @@ func InviteMessage(to, slug, role, appURL, siteURL string) Message {
 			"\n\nYou'll be asked for your email and sent a sign-in link. No password.\n",
 	}
 }
+
+// DashboardLoginMessage is the email for signing in to the Foyr dashboard. link opens the "Continue" page.
+func DashboardLoginMessage(to, link, siteURL string) Message {
+	body := eyebrow("Sign in") + "\n" +
+		heading("Sign in to Foyr.") + "\n" +
+		paragraph("Press the button to open your dashboard. No password needed.") + "\n" +
+		button(link, "Open the dashboard") + "\n" +
+		small("This link works once, for 15 minutes. If you didn&#39;t ask for it, ignore this email.") + "\n" +
+		small(`If the button doesn&#39;t work, copy this link into your browser:<br /><span style="font-family:`+fontMono+
+			`;font-size:12px;color:`+colMuted+`;word-break:break-all;overflow-wrap:anywhere;">`+esc(link)+`</span>`)
+	footer := "You&#39;re receiving this because someone asked to sign in to the Foyr dashboard with this email address. " +
+		"Not you? Ignore this email and nothing happens."
+	return Message{
+		To:      to,
+		Subject: "Sign in to Foyr",
+		HTML:    page("Sign in to Foyr", "Your dashboard sign-in link. It works once, for 15 minutes.", body, footer, siteURL),
+		Text: "Sign in to the Foyr dashboard:\n\n" + link + "\n\n" +
+			"This link works once, for 15 minutes. If you didn't ask for it, ignore this email.\n",
+	}
+}
