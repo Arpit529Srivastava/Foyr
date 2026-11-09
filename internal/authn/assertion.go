@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"math/big"
 	"strings"
 	"time"
@@ -29,6 +30,7 @@ const (
 	assertionLifetime = 60
 	assertionMaxLife  = 300
 	assertionLeeway   = 30
+	maxAssertionTime  = 1 << 53
 )
 
 // AssertionClaims is what an identity assertion says. Iat and Exp are Unix seconds.
@@ -107,19 +109,106 @@ func verifyES256(pub *ecdsa.PublicKey, signingInput string, sig []byte) bool {
 	return ecdsa.Verify(pub, sum[:], r, s)
 }
 
-func decodeStrict(seg string, v any) error {
+// segment decodes one base64url segment, rejecting anything outside the alphabet.
+func segment(seg string) ([]byte, error) {
+	for i := 0; i < len(seg); i++ {
+		c := seg[i]
+		if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' || c == '_') {
+			return nil, ErrAssertionMalformed
+		}
+	}
 	raw, err := base64.RawURLEncoding.Strict().DecodeString(seg)
 	if err != nil {
-		return ErrAssertionMalformed
+		return nil, ErrAssertionMalformed
+	}
+	return raw, nil
+}
+
+// members walks a JSON object, rejecting duplicate names and trailing data; names match exactly.
+func members(seg string, each func(name string, val json.RawMessage) error) error {
+	raw, err := segment(seg)
+	if err != nil {
+		return err
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
-	if _, isHeader := v.(*assertionHeader); isHeader {
-		dec.DisallowUnknownFields()
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return ErrAssertionMalformed
 	}
-	if err := dec.Decode(v); err != nil || dec.More() {
+	seen := map[string]bool{}
+	for dec.More() {
+		tok, err := dec.Token()
+		name, ok := tok.(string)
+		if err != nil || !ok || seen[name] {
+			return ErrAssertionMalformed
+		}
+		seen[name] = true
+		var val json.RawMessage
+		if err := dec.Decode(&val); err != nil {
+			return ErrAssertionMalformed
+		}
+		if err := each(name, val); err != nil {
+			return err
+		}
+	}
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('}') {
+		return ErrAssertionMalformed
+	}
+	if _, err := dec.Token(); err != io.EOF {
 		return ErrAssertionMalformed
 	}
 	return nil
+}
+
+func parseHeader(seg string) (assertionHeader, error) {
+	var h assertionHeader
+	err := members(seg, func(name string, val json.RawMessage) error {
+		var err error
+		switch name {
+		case "alg":
+			err = json.Unmarshal(val, &h.Alg)
+		case "typ":
+			err = json.Unmarshal(val, &h.Typ)
+		case "kid":
+			err = json.Unmarshal(val, &h.Kid)
+		case "crit":
+			h.Crit = val
+		default:
+			return ErrAssertionMalformed
+		}
+		if err != nil {
+			return ErrAssertionMalformed
+		}
+		return nil
+	})
+	return h, err
+}
+
+func parseClaims(seg string) (AssertionClaims, error) {
+	var c AssertionClaims
+	err := members(seg, func(name string, val json.RawMessage) error {
+		var err error
+		switch name {
+		case "iss":
+			err = json.Unmarshal(val, &c.Iss)
+		case "aud":
+			err = json.Unmarshal(val, &c.Aud)
+		case "sub":
+			err = json.Unmarshal(val, &c.Sub)
+		case "email":
+			err = json.Unmarshal(val, &c.Email)
+		case "role":
+			err = json.Unmarshal(val, &c.Role)
+		case "iat":
+			err = json.Unmarshal(val, &c.Iat)
+		case "exp":
+			err = json.Unmarshal(val, &c.Exp)
+		}
+		if err != nil {
+			return ErrAssertionMalformed
+		}
+		return nil
+	})
+	return c, err
 }
 
 func validRole(r string) bool {
@@ -133,14 +222,19 @@ func VerifyAssertion(keys AssertionKeys, token, issuer, audience string, now tim
 	if len(parts) != 3 {
 		return zero, ErrAssertionMalformed
 	}
-	var h assertionHeader
-	if err := decodeStrict(parts[0], &h); err != nil {
+	for _, p := range parts {
+		if _, err := segment(p); err != nil {
+			return zero, err
+		}
+	}
+	h, err := parseHeader(parts[0])
+	if err != nil {
 		return zero, err
 	}
 	if h.Alg != "ES256" || h.Crit != nil {
 		return zero, ErrAssertionAlg
 	}
-	sig, err := base64.RawURLEncoding.Strict().DecodeString(parts[2])
+	sig, err := segment(parts[2])
 	if err != nil || len(sig) != 64 {
 		return zero, ErrAssertionMalformed
 	}
@@ -151,8 +245,8 @@ func VerifyAssertion(keys AssertionKeys, token, issuer, audience string, now tim
 	if !verifyES256(pub, parts[0]+"."+parts[1], sig) {
 		return zero, ErrAssertionSignature
 	}
-	var c AssertionClaims
-	if err := decodeStrict(parts[1], &c); err != nil {
+	c, err := parseClaims(parts[1])
+	if err != nil {
 		return zero, err
 	}
 	if c.Iss != issuer {
@@ -161,7 +255,7 @@ func VerifyAssertion(keys AssertionKeys, token, issuer, audience string, now tim
 	if c.Aud != audience {
 		return zero, ErrAssertionAudience
 	}
-	if !validRole(c.Role) || c.Exp <= c.Iat || c.Exp-c.Iat > assertionMaxLife {
+	if !validRole(c.Role) || c.Iat < 0 || c.Exp >= maxAssertionTime || c.Exp <= c.Iat || c.Exp-c.Iat > assertionMaxLife {
 		return zero, ErrAssertionClaims
 	}
 	n := now.Unix()

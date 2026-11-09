@@ -9,6 +9,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"math"
+	"math/big"
 	"strings"
 	"testing"
 	"time"
@@ -50,6 +52,21 @@ func mustJSON(t testing.TB, v any) []byte {
 func forge(t testing.TB, key *ecdsa.PrivateKey, header map[string]any, c AssertionClaims) string {
 	t.Helper()
 	input := b64(mustJSON(t, header)) + "." + b64(mustJSON(t, c))
+	sum := sha256.Sum256([]byte(input))
+	r, s, err := ecdsa.Sign(rand.Reader, key, sum[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig := make([]byte, 64)
+	r.FillBytes(sig[:32])
+	s.FillBytes(sig[32:])
+	return input + "." + b64(sig)
+}
+
+// forgeRaw signs exact header and payload bytes, to test wire-level parsing.
+func forgeRaw(t testing.TB, key *ecdsa.PrivateKey, header, payload string) string {
+	t.Helper()
+	input := b64([]byte(header)) + "." + b64([]byte(payload))
 	sum := sha256.Sum256([]byte(input))
 	r, s, err := ecdsa.Sign(rand.Reader, key, sum[:])
 	if err != nil {
@@ -127,12 +144,47 @@ func TestVerifyRejects(t *testing.T) {
 	unknownKid := hdr(key)
 	unknownKid["kid"] = KeyID(&other.PublicKey)
 
+	n := elliptic.P256().Params().N
+	nPlus := new(big.Int).Add(n, big.NewInt(1))
+	rs := func(r, s *big.Int) string {
+		sig := make([]byte, 64)
+		r.FillBytes(sig[:32])
+		s.FillBytes(sig[32:])
+		return parts[0] + "." + parts[1] + "." + b64(sig)
+	}
+	one := big.NewInt(1)
+	kid := KeyID(&key.PublicKey)
+	hj := `{"alg":"ES256","typ":"JWT","kid":"` + kid + `"}`
+	pj := string(mustJSON(t, good))
+	pjWith := func(old, repl string) string { return strings.Replace(pj, old, repl, 1) }
+
 	tests := []struct {
 		name  string
 		token string
 		now   time.Time
 		want  error
 	}{
+		{"r zero", rs(big.NewInt(0), one), t0, ErrAssertionSignature},
+		{"s zero", rs(one, big.NewInt(0)), t0, ErrAssertionSignature},
+		{"r equals N", rs(n, one), t0, ErrAssertionSignature},
+		{"s equals N", rs(one, n), t0, ErrAssertionSignature},
+		{"r above N", rs(nPlus, one), t0, ErrAssertionSignature},
+		{"s above N", rs(one, nPlus), t0, ErrAssertionSignature},
+		{"iat MinInt64", forge(t, key, hdr(key), with(func(c *AssertionClaims) { c.Iat = math.MinInt64; c.Exp = 4100000000 })), t0, ErrAssertionClaims},
+		{"exp MaxInt64", forge(t, key, hdr(key), with(func(c *AssertionClaims) { c.Exp = math.MaxInt64 })), t0, ErrAssertionClaims},
+		{"negative iat", forge(t, key, hdr(key), with(func(c *AssertionClaims) { c.Iat = -5; c.Exp = 10 })), t0, ErrAssertionClaims},
+		{"exp 2^53", forge(t, key, hdr(key), with(func(c *AssertionClaims) { c.Exp = 1 << 53 })), t0, ErrAssertionClaims},
+		{"newline in signature", parts[0] + "." + parts[1] + "." + parts[2][:10] + "\n" + parts[2][10:], t0, ErrAssertionMalformed},
+		{"carriage return in payload", parts[0] + "." + parts[1][:10] + "\r" + parts[1][10:] + "." + parts[2], t0, ErrAssertionMalformed},
+		{"header name case", forgeRaw(t, key, `{"ALG":"ES256","typ":"JWT","kid":"`+kid+`"}`, pj), t0, ErrAssertionMalformed},
+		{"header unknown member", forgeRaw(t, key, `{"alg":"ES256","typ":"JWT","kid":"`+kid+`","jku":"x"}`, pj), t0, ErrAssertionMalformed},
+		{"header duplicate member", forgeRaw(t, key, `{"alg":"ES256","alg":"ES256","typ":"JWT","kid":"`+kid+`"}`, pj), t0, ErrAssertionMalformed},
+		{"header trailing brace", forgeRaw(t, key, hj+"}", pj), t0, ErrAssertionMalformed},
+		{"header trailing object", forgeRaw(t, key, hj+hj, pj), t0, ErrAssertionMalformed},
+		{"payload duplicate member", forgeRaw(t, key, hj, pjWith(`"role":"member"`, `"role":"viewer","role":"owner"`)), t0, ErrAssertionMalformed},
+		{"payload trailing brace", forgeRaw(t, key, hj, pj+"}"), t0, ErrAssertionMalformed},
+		{"payload not an object", forgeRaw(t, key, hj, `[]`), t0, ErrAssertionMalformed},
+		{"payload name case", forgeRaw(t, key, hj, pjWith(`"role"`, `"ROLE"`)), t0, ErrAssertionClaims},
 		{"tampered payload", parts[0] + "." + b64(mustJSON(t, tampered)) + "." + parts[2], t0, ErrAssertionSignature},
 		{"alg none", noneTok, t0, ErrAssertionAlg},
 		{"alg HS256", hsTok, t0, ErrAssertionAlg},
@@ -163,6 +215,10 @@ func TestVerifyRejects(t *testing.T) {
 	}
 	if _, err := VerifyAssertion(keys, goodTok, testIss, testAud, t0); err != nil {
 		t.Fatalf("control token rejected: %v", err)
+	}
+	extra := forgeRaw(t, key, hj, pjWith(`"role"`, `"extra":{"a":[1,2]},"role"`))
+	if got, err := VerifyAssertion(keys, extra, testIss, testAud, t0); err != nil || got != good {
+		t.Fatalf("unknown payload claim must be ignored: %+v %v", got, err)
 	}
 }
 
