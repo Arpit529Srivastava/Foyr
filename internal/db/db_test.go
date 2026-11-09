@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -153,5 +154,74 @@ func TestMigrateAuthTables(t *testing.T) {
 		if err := pool.QueryRow(ctx, "SELECT to_regclass($1) IS NOT NULL", table).Scan(&ok); err != nil || !ok {
 			t.Errorf("table %s missing (err %v)", table, err)
 		}
+	}
+}
+
+func TestMigratePublicIDs(t *testing.T) {
+	pool := dbtest.Empty(t)
+	ctx := context.Background()
+
+	if _, err := pool.Exec(ctx, `CREATE TABLE schema_migrations (
+		version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`); err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range []string{"001_init", "002_builds", "003_runs", "004_slugs", "005_auth", "006_dashboard_login"} {
+		sql, err := os.ReadFile("migrations/" + v + ".sql")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, string(sql)); err != nil {
+			t.Fatalf("%s: %v", v, err)
+		}
+		if _, err := pool.Exec(ctx, "INSERT INTO schema_migrations (version) VALUES ($1)", v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustExec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, q, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, e := range []string{"a@x.io", "b@x.io", "c@x.io"} {
+		mustExec(`INSERT INTO users (email) VALUES ($1)`, e)
+	}
+
+	if _, err := db.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	mustExec(`INSERT INTO users (email) VALUES ('d@x.io')`)
+
+	rows, err := pool.Query(ctx, `SELECT public_id FROM users`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	format := regexp.MustCompile(`^usr_[0-9a-f]{16}$`)
+	seen := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		if !format.MatchString(id) {
+			t.Errorf("public_id %q does not match the format", id)
+		}
+		seen[id] = true
+	}
+	rows.Close()
+	if len(seen) != 4 {
+		t.Errorf("got %d distinct public ids, want 4", len(seen))
+	}
+
+	if _, err := pool.Exec(ctx, `UPDATE users SET public_id = 'usr_XYZ' WHERE email = 'a@x.io'`); err == nil {
+		t.Error("a malformed public_id was accepted")
+	}
+	mustExec(`UPDATE users SET public_id = 'usr_0123456789abcdef' WHERE email = 'a@x.io'`)
+	if _, err := pool.Exec(ctx, `UPDATE users SET public_id = 'usr_0123456789abcdef' WHERE email = 'b@x.io'`); err == nil {
+		t.Error("a duplicate public_id was accepted")
+	}
+	if _, err := pool.Exec(ctx, `UPDATE users SET public_id = NULL WHERE email = 'a@x.io'`); err == nil {
+		t.Error("a NULL public_id was accepted")
 	}
 }
