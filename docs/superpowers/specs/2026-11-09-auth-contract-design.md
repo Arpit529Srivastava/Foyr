@@ -198,3 +198,13 @@ Rollback: authproxy back to the previous task definition (the new key is unused)
 ## Hand-off to sub-project 2
 
 The SDK spec starts from this contract and the vectors: `getUser` reads the plain headers; `verifyUser` fetches and caches the key set (refetch once on an unknown `kid`, serve stale on network failure), checks the audience from `FOYR_APP_SLUG`, throws on invalid input; `FOYR_DEV_USER` is ignored when `FOYR_APP_SLUG` is set. It also corrects the public docs: ids look like `usr_` plus hex, and the example in the auth page changes. npm publishing is the founder's step.
+
+## Amendments during implementation (2026-11-09)
+
+Recorded in ADR-038. These refine or correct the text above; where they differ, they win.
+
+- **Ruling A, verifier strictness.** Known member names match exactly (case-sensitive). Duplicate member names are rejected in header and payload, and so is trailing data after the JSON object. Unknown header members are rejected. Unknown payload claims are ignored, so a later claim cannot break deployed SDKs. Segments may contain only `[A-Za-z0-9_-]`.
+- **Ruling B, high-S.** High-S signatures are accepted (RFC 7515 allows both). Apps must never use the token string as an identity or cache key.
+- **Ruling C, time bounds.** `iat` must be 0 or more and `exp` below 2^53. `exp - iat` must be at most 300 seconds. Leeway is 30 seconds. The assertion lasts 60 seconds.
+- **Deviation 1, vectors test.** It replays every token through the verifier instead of regenerating the file, because ECDSA signatures are randomized. The key set in the file is deterministic and compared exactly.
+- **Deviation 2, where signing happens.** In authproxy's `ServeHTTP` right after authorization, not inside `rewrite`, because `Rewrite` cannot fail a request. A signing failure answers 500 and forwards nothing.

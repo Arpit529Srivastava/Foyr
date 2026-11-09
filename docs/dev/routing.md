@@ -52,7 +52,20 @@ so locally this answers 502 ("This app isn't responding"), which proves the rout
 **Header stripping**: deleting headers that only Foyr is allowed to set.
 - Example 1: a visitor sends `X-Foyr-Role: owner`; authproxy deletes it before the app sees the request.
 - Example 2: a bank teller ignores a customer's note saying "approved by the manager".
-- Why: in Phase 1 apps trust `X-Foyr-*` for identity, so visitors must never be able to forge them.
+- Why: apps trust `X-Foyr-*` for identity, so visitors must never be able to forge them.
+
+**Identity headers**: what authproxy adds for a signed-in visitor (ADR-038). Any `X-Foyr-*` header the visitor sent is deleted first, so these four are the only ones an app ever sees.
+
+| Header | Value |
+|---|---|
+| `X-Foyr-User-Id` | the user's public id, `usr_` plus 16 hex characters |
+| `X-Foyr-Email` | the user's email |
+| `X-Foyr-Role` | `owner`, `admin`, `member` or `viewer` |
+| `X-Foyr-Assertion` | the same identity as an ES256 token, valid 60 seconds, for apps that verify it |
+
+- Example 1: a visitor of a public app who is not signed in gets none of the four.
+- Example 2: a signed passport next to a name badge: the badge is quick to read, the passport can be checked.
+- Why: reading the headers is enough behind the load balancer; verifying the assertion against `auth.<PLATFORM_DOMAIN>/.well-known/jwks.json` also proves Foyr sent them.
 
 **Load balancer (ALB)**: AWS's public entry point that receives requests and hands them on.
 - Example 1: every `*.apps.foyr.online` request arrives at `foyr-apps` first.
