@@ -1,13 +1,10 @@
 {{define "metrics.html"}}{{template "head" .}}{{template "frame" .}}{{template "apphead" .}}
 {{template "preview" "Metrics arrive after login: requests, errors and response times measured at Foyr's front door, CPU and memory from your container."}}
-<style>.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.ch{display:flex;align-items:flex-end;gap:3px;height:120px;margin-top:6px}.ch span{flex:1;border-radius:3px 3px 0 0;background:linear-gradient(#f5a524,#f5a52433);transform-origin:bottom;animation:grow .7s var(--ease) both}
-.ch.ok span{background:linear-gradient(#4ade80,#4ade8022)}.ch.bad span{background:linear-gradient(#e5484d,#e5484d22)}.ch.dim span{background:linear-gradient(#a3a3a3,#a3a3a322)}
-@keyframes grow{from{transform:scaleY(0)}}.big{font-size:26px;font-weight:550;letter-spacing:-.02em}.big small{font-size:13px;color:var(--faint);font-weight:400;margin-left:6px}
-.axis{display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);margin-top:6px}
-@media (max-width:860px){.charts{grid-template-columns:minmax(0,1fr)}}</style>
-<div class="pills" style="display:flex;gap:6px;margin-bottom:14px"><span class="chip" style="text-transform:none">Last 24 hours</span></div>
-<div class="charts">
+<style>.ch{display:flex;align-items:flex-end;gap:3px;height:96px;margin-top:10px}.ch span{flex:1;background:linear-gradient(to top,var(--a3),var(--a) 60%,var(--hi));-webkit-mask:repeating-linear-gradient(to top,#000 0 5px,transparent 5px 7px);mask:repeating-linear-gradient(to top,#000 0 5px,transparent 5px 7px);transform-origin:bottom;animation:grow .6s var(--ease) both}
+.ch.ok span{background:linear-gradient(to top,var(--ok-lo),var(--ok))}.ch.bad span{background:linear-gradient(to top,var(--bad-soft),var(--bad))}.ch.dim span{background:linear-gradient(to top,var(--line2),var(--dim))}
+.big{font-size:21px;font-weight:500;letter-spacing:-.022em}.big small{font-size:12.5px;color:var(--faint);font-weight:400;margin-left:8px;letter-spacing:0}.axis{display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);margin-top:6px}</style>
+<p class="faint" style="margin:0 0 10px">Last 24 hours</p>
+<div class="stack even">
 <section class="card"><h2>Requests <small>per hour</small></h2><div class="big">18,402<small>+12% vs yesterday</small></div><div class="ch">{{range $i, $v := sample 24 3}}<span style="height:{{$v}}%;animation-delay:{{delay $i 18}}ms"></span>{{end}}</div><div class="axis"><span>24h ago</span><span>now</span></div></section>
 <section class="card"><h2>Errors <small>5xx responses</small></h2><div class="big">0.4%<small>74 errors</small></div><div class="ch bad">{{range $i, $v := sample 24 9}}<span style="height:{{div $v 4}}%;animation-delay:{{delay $i 18}}ms"></span>{{end}}</div><div class="axis"><span>24h ago</span><span>now</span></div></section>
 <section class="card"><h2>Response time <small>p95</small></h2><div class="big">142ms<small>p50 38ms</small></div><div class="ch ok">{{range $i, $v := sample 24 5}}<span style="height:{{$v}}%;animation-delay:{{delay $i 18}}ms"></span>{{end}}</div><div class="axis"><span>24h ago</span><span>now</span></div></section>

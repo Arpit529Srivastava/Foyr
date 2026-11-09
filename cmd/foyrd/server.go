@@ -18,6 +18,7 @@ import (
 	"github.com/Arpit529Srivastava/Foyr/internal/mail"
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
 	"github.com/Arpit529Srivastava/Foyr/internal/store"
+	"github.com/Arpit529Srivastava/Foyr/internal/ui"
 )
 
 // newServer builds foyrd's routes.
@@ -25,6 +26,7 @@ func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handl
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", health.Handler)
 	favicon.Register(mux)
+	ui.RegisterAssets(mux)
 	sender := mailer(cfg, log)
 	fh := &founder.Handler{Data: st, Key: cfg.FounderKey, AppsDomain: cfg.AppsDomain, AppsScheme: appsScheme(cfg), Mail: sender, SiteURL: siteURL(cfg)}
 	fh.Register(mux)

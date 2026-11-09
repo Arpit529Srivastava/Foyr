@@ -1,13 +1,12 @@
 {{define "logs.html"}}{{template "head" .}}{{template "frame" .}}{{template "apphead" .}}
 {{template "preview" "Live logs arrive with Phase 1: everything your app prints, streamed as it happens, searchable for 14 days."}}
-<style>.lbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.lbar input{flex:1;min-width:200px}
-.lbar .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}.lbar .seg span{padding:7px 12px;font-size:13px;color:var(--dim);border-left:1px solid var(--line)}
-.lbar .seg span:first-child{border:0;background:var(--raise);color:var(--text)}
-.livebtn{color:var(--ok)}.livebtn::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok);animation:pulse 1.6s infinite}
-.term{background:#050505;border:1px solid var(--line);border-radius:var(--r);font:12.5px/1.75 var(--mono);overflow-x:auto}
-.term div{display:grid;grid-template-columns:150px 54px 90px minmax(0,1fr);gap:12px;padding:1px 16px;white-space:pre}.term div:hover{background:#ffffff08}
-.term .t{color:var(--faint)}.term .i{color:#7cc4ff}.term .w{color:var(--a)}.term .e{color:var(--bad)}.term .src{color:var(--faint)}
-.term .hd{color:var(--faint);border-bottom:1px solid var(--line);padding:8px 16px;font-family:inherit}</style>
+<style>.lbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}.lbar input{flex:1;min-width:200px}.lbar .seg span:first-child{background:var(--raise);color:var(--text)}
+.livebtn{color:var(--ok)}.livebtn::before{content:"";width:7px;height:7px;background:var(--ok);animation:pulse 1.6s infinite}
+.term{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);font:12px/1.75 var(--mono);overflow-x:auto}
+.term div{display:grid;grid-template-columns:150px 54px 72px minmax(0,1fr);gap:12px;padding:1px 16px;white-space:pre}.term div:hover{background:var(--card)}
+.term .t{color:var(--faint)}.term .i{color:var(--dim)}.term .w{color:var(--a2)}.term .e{color:var(--bad2)}.term .src{color:var(--faint)}
+.term .hd{color:var(--faint);border-bottom:1px solid var(--line);padding:7px 16px}
+@media (max-width:860px){.term .hd{display:none}.term div{grid-template-columns:auto auto minmax(0,1fr);gap:0 10px;padding:7px 14px;white-space:normal;border-top:1px solid var(--line)}.term div:nth-child(2){border-top:0}.term div>span:last-child{grid-column:1/-1;color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere}}</style>
 <div class="lbar"><input disabled placeholder="Search logs, e.g. status:500 or /api/reports"><div class="seg"><span>All</span><span>Info</span><span>Warn</span><span>Error</span></div>
 <div class="seg"><span>Last hour</span><span>24h</span><span>14d</span></div><button disabled class="livebtn">Live</button></div>
 <div class="term" aria-label="Sample log lines"><div class="hd"><span>Time</span><span>Level</span><span>Source</span><span>Message</span></div>

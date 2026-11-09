@@ -78,14 +78,16 @@ type Handler struct {
 var files embed.FS
 
 var pages = template.Must(template.New("").Funcs(template.FuncMap{
-	"dur":     fmtDur,
-	"since":   since,
-	"short":   func(s string) string { return s[:min(len(s), 7)] },
-	"first":   firstLine,
-	"between": between,
-	"clock":   func(t time.Time) string { return t.UTC().Format("Jan 2 15:04:05 UTC") },
-	"delay":   func(i, step int) int { return min(i*step, 1200) },
-	"add":     func(a, b int) int { return a + b },
+	"consoleHead": ui.ConsoleHead,
+	"themeButton": ui.ThemeButton,
+	"dur":         fmtDur,
+	"since":       since,
+	"short":       func(s string) string { return s[:min(len(s), 7)] },
+	"first":       firstLine,
+	"between":     between,
+	"clock":       func(t time.Time) string { return t.UTC().Format("Jan 2 15:04:05 UTC") },
+	"delay":       func(i, step int) int { return min(i*step, 1200) },
+	"add":         func(a, b int) int { return a + b },
 }).ParseFS(files, "templates/*.html"))
 
 // Register adds the routes to mux.
