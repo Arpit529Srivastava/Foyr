@@ -32,7 +32,7 @@ func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handl
 		(&login.Handler{Store: st, Mail: sender, AuthURL: cfg.AuthURL, AppsDomain: cfg.AppsDomain, SiteURL: siteURL(cfg)}).Register(mux)
 	}
 	// The customer dashboard borrows the founder sign-in until customer login exists.
-	(&dashboard.Handler{Data: st, Allowed: fh.SignedIn, SignIn: "/founder", AppsDomain: cfg.AppsDomain}).Register(mux)
+	(&dashboard.Handler{Data: st, Allowed: fh.SignedIn, SignIn: "/founder", AppsDomain: cfg.AppsDomain, AppsScheme: appsScheme(cfg), Mail: sender, SiteURL: siteURL(cfg)}).Register(mux)
 	mux.Handle("POST /webhooks/github", &github.Handler{
 		Secret:    cfg.GitHubWebhookSecret,
 		OnPush:    onPush(st),

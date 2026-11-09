@@ -1,4 +1,4 @@
-// Package dashboard is the customer dashboard: one GitHub account's apps, deployments and settings.
+// Package dashboard is the customer dashboard: one GitHub account's apps, deployments, settings and access.
 // Until customer login exists, Allowed is the founder's sign-in and every account is visible to them.
 package dashboard
 
@@ -13,9 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Arpit529Srivastava/Foyr/internal/mail"
 	"github.com/Arpit529Srivastava/Foyr/internal/obs"
 	"github.com/Arpit529Srivastava/Foyr/internal/store"
 	"github.com/Arpit529Srivastava/Foyr/internal/ui"
+	"github.com/Arpit529Srivastava/Foyr/internal/web"
 )
 
 // SidebarCookie remembers a hidden sidebar; it holds no secret.
@@ -32,7 +34,16 @@ type Data interface {
 	GetDeployment(ctx context.Context, id int64) (store.Deployment, error)
 	Steps(ctx context.Context, deploymentID int64) ([]store.Step, error)
 	Timeline(ctx context.Context, deploymentID int64) ([]store.DeploymentEvent, error)
+	ListMembers(ctx context.Context, appID int64) ([]store.Member, error)
+	ListInvites(ctx context.Context, appID int64) ([]store.Invite, error)
+	CreateInvite(ctx context.Context, appID int64, email, role string, by store.Actor) (store.Invite, error)
+	RevokeInvite(ctx context.Context, inviteID int64, by store.Actor) error
+	RemoveMember(ctx context.Context, appID, userID int64, by store.Actor) error
+	SetAccessMode(ctx context.Context, appID int64, mode string, by store.Actor) error
 }
+
+// actor is who the audit trail names for changes made here, until customer login exists.
+var actor = store.Actor{Type: "system", Login: "founder"}
 
 // Handler serves /dashboard pages.
 type Handler struct {
@@ -40,6 +51,9 @@ type Handler struct {
 	Allowed    func(*http.Request) bool // who may see the dashboard
 	SignIn     string                   // where everyone else is sent
 	AppsDomain string
+	AppsScheme string      // "https" unless developing locally
+	Mail       mail.Sender // sends invites; nil saves them without an email
+	SiteURL    string      // where the email banner image lives; empty in development
 	Now        func() time.Time
 }
 
@@ -55,7 +69,7 @@ var Tabs = []Tab{
 	{"deployments", "Deployments", false},
 	{"logs", "Logs", true},
 	{"metrics", "Metrics", true},
-	{"access", "Access", true},
+	{"access", "Access", false},
 	{"environment", "Environment", true},
 	{"domains", "Domains", false},
 	{"settings", "Settings", false},
@@ -87,6 +101,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /dashboard/{account}/{app}", h.guard(h.app))
 	mux.HandleFunc("GET /dashboard/{account}/{app}/{tab}", h.guard(h.app))
 	mux.HandleFunc("GET /dashboard/{account}/{app}/deployments/{id}", h.guard(h.deployment))
+	mux.HandleFunc("POST /dashboard/{account}/{app}/access/invites", h.guardPost(h.invite))
+	mux.HandleFunc("POST /dashboard/{account}/{app}/access/invites/{iid}/revoke", h.guardPost(h.revokeInvite))
+	mux.HandleFunc("POST /dashboard/{account}/{app}/access/members/{uid}/remove", h.guardPost(h.removeMember))
+	mux.HandleFunc("POST /dashboard/{account}/{app}/access/mode", h.guardPost(h.setMode))
 }
 
 func (h *Handler) now() time.Time {
@@ -104,6 +122,19 @@ func (h *Handler) guard(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+// guardPost is guard for form posts: same-origin only, small bodies.
+func (h *Handler) guardPost(next http.HandlerFunc) http.HandlerFunc {
+	return h.guard(func(w http.ResponseWriter, r *http.Request) {
+		if !web.SameOrigin(r) {
+			obs.Logger(r.Context()).Warn("dashboard post refused: cross-site", "origin", r.Header.Get("Origin"), "path", r.URL.Path)
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+		next(w, r)
+	})
 }
 
 // scope is the account (and app) a request is about, with what the sidebar needs.
@@ -247,6 +278,10 @@ func (h *Handler) app(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if tab == "access" {
+		h.accessPage(w, r, s, http.StatusOK, "")
+		return
+	}
 	list, err := h.Data.ListDeployments(r.Context(), s.App.ID, 0, historyLimit)
 	if err != nil {
 		h.fail(w, r, err)
@@ -354,11 +389,15 @@ func hint(step, reason string) string {
 
 // page renders a signed-in page inside the frame.
 func (h *Handler) page(w http.ResponseWriter, r *http.Request, s scope, name, tab string, data map[string]any) {
+	h.pageStatus(w, r, http.StatusOK, s, name, tab, data)
+}
+
+func (h *Handler) pageStatus(w http.ResponseWriter, r *http.Request, status int, s scope, name, tab string, data map[string]any) {
 	data["S"], data["Tabs"], data["Tab"], data["Domain"], data["Now"] = s, Tabs, tab, h.AppsDomain, h.now()
 	if c, err := r.Cookie(SidebarCookie); err == nil && c.Value == "collapsed" {
 		data["Collapsed"] = true
 	}
-	h.render(w, r, http.StatusOK, name, data)
+	h.render(w, r, status, name, data)
 }
 
 func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, name string, data map[string]any) {

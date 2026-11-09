@@ -1,29 +1,32 @@
 {{define "access.html"}}{{template "head" .}}{{template "frame" .}}{{template "apphead" .}}
-{{template "preview" "Login, invites and API tokens are being built now. People sign in with a magic link; programs use a token. Your app gets the same X-Foyr-User headers either way."}}
-<style>.modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.mode{border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;gap:12px}
-.mode.on{border-color:var(--a);background:#f5a5240a}.mode i{width:16px;height:16px;border-radius:50%;border:2px solid var(--line2);flex:none;margin-top:2px}.mode.on i{border:5px solid var(--a)}
-.mode b{display:block;font-weight:550}.mode p{margin:2px 0 0;color:var(--dim);font-size:13.5px}
+<style>.modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.modes form{display:contents}
+.mode{border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;gap:12px;background:none;color:inherit;font:inherit;text-align:left;width:100%;min-width:0;white-space:normal;align-items:flex-start;height:auto}
+button.mode{cursor:pointer}.mode.on{border-color:var(--a);background:#f5a5240a}.mode i{width:16px;height:16px;border-radius:50%;border:2px solid var(--line2);flex:none;margin-top:2px}.mode.on i{border:5px solid var(--a)}
+.mode b{display:block;font-weight:550}.mode .d{display:block;margin:2px 0 0;color:var(--dim);font-size:13.5px;font-weight:400}
 .inv{display:flex;gap:8px;flex-wrap:wrap}.inv input{flex:1;min-width:200px}
 .person{display:flex;align-items:center;gap:10px}.person .av{width:28px;height:28px;border-radius:50%;font-size:12px}
 .role{font-size:12.5px;color:var(--dim);border:1px solid var(--line);border-radius:7px;padding:2px 8px;text-transform:capitalize}
+.soon{font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:7px;padding:2px 8px;font-weight:400}
+.err{border:1px solid #ef444466;background:#ef44440d;border-radius:var(--r);padding:12px 16px;font-size:13.5px}
 code{font:12.5px var(--mono);background:var(--raise);border-radius:6px;padding:2px 6px;color:var(--a2)}
 @media (max-width:860px){.modes{grid-template-columns:minmax(0,1fr)}}</style>
+{{$base := printf "/dashboard/%s/%s/access" .S.Account.Login .S.App.Slug}}
 <div class="stack">
+{{if .Error}}<p class="err" role="alert"><b>Not done.</b> {{.Error}}</p>{{end}}
 <section class="card"><h2>Who can open this app</h2><div class="modes">
-<div class="mode on"><i></i><div><b>Members only</b><p>Everyone signs in with a magic link. Only people you invite get in.</p></div></div>
-<div class="mode"><i></i><div><b>Public</b><p>Anyone can open it. Signed-in visitors still get identity headers.</p></div></div></div></section>
-<section class="card"><h2>People <small>3 members, 1 invited</small></h2>
-<div class="inv"><input disabled type="email" placeholder="teammate@company.com"><select disabled><option>Member</option><option>Admin</option><option>Viewer</option></select><button class="btn primary" disabled>Send invite</button></div>
-<div class="scroll" style="margin-top:14px"><table><thead><tr><th>Person</th><th>Role</th><th>Last sign-in</th><th></th></tr></thead><tbody>
-<tr><td><span class="person"><span class="av">A</span>ana@acme.com</span></td><td><span class="role">owner</span></td><td class="dim">2h ago</td><td></td></tr>
-<tr><td><span class="person"><span class="av">R</span>ravi@acme.com</span></td><td><span class="role">admin</span></td><td class="dim">yesterday</td><td style="text-align:right"><button disabled>Remove</button></td></tr>
-<tr><td><span class="person"><span class="av">M</span>meera@acme.com</span></td><td><span class="role">member</span></td><td class="dim">3d ago</td><td style="text-align:right"><button disabled>Remove</button></td></tr>
-<tr><td><span class="person"><span class="av" style="background:var(--raise);color:var(--dim)">J</span>jon@client.io</span></td><td><span class="role">viewer</span></td><td class="faint">Invite sent, not accepted</td><td style="text-align:right"><button disabled>Revoke</button></td></tr></tbody></table></div></section>
+<form method="post" action="{{$base}}/mode"><button class="mode{{if ne .S.App.AccessMode "public"}} on{{end}}" name="mode" value="private"><i></i><span><b>Members only</b><span class="d">Everyone signs in with a magic link. Only people you invite get in.</span></span></button></form>
+<form method="post" action="{{$base}}/mode"><button class="mode{{if eq .S.App.AccessMode "public"}} on{{end}}" name="mode" value="public"><i></i><span><b>Public</b><span class="d">Anyone can open it. Signed-in visitors still get identity headers.</span></span></button></form></div></section>
+<section class="card"><h2>People <small>{{len .Members}} member{{if ne (len .Members) 1}}s{{end}}, {{len .Invites}} invited</small></h2>
+<form class="inv" method="post" action="{{$base}}/invites"><input name="email" type="email" required aria-label="Email" placeholder="teammate@company.com" autocomplete="off">
+<select name="role" aria-label="Role">{{range .Roles}}<option value="{{.}}">{{.}}</option>{{end}}</select><button class="btn primary">Send invite</button></form>
+<div class="scroll" style="margin-top:14px"><table><thead><tr><th>Person</th><th>Role</th><th>Since</th><th></th></tr></thead><tbody>
+{{range .Members}}<tr><td><span class="person"><span class="av">{{initial .Email}}</span>{{.Email}}</span></td><td><span class="role">{{.Role}}</span></td><td class="dim">{{since $.Now .CreatedAt}}</td>
+<td style="text-align:right"><form method="post" action="{{$base}}/members/{{.UserID}}/remove"><button>Remove</button></form></td></tr>{{end}}
+{{range .Invites}}<tr><td><span class="person"><span class="av" style="background:var(--raise);color:var(--dim)">{{initial .Email}}</span>{{.Email}}</span></td><td><span class="role">{{.Role}}</span></td><td class="faint">Invited {{since $.Now .CreatedAt}}, not accepted</td>
+<td style="text-align:right"><form method="post" action="{{$base}}/invites/{{.ID}}/revoke"><button>Revoke</button></form></td></tr>{{end}}
+{{if and (not .Members) (not .Invites)}}<tr><td colspan="4" class="dim">No one yet. Invite a teammate above.</td></tr>{{end}}</tbody></table></div></section>
 <div class="stack two">
-<section class="card"><h2>API tokens <button class="btn" disabled>Create token</button></h2>
-<p class="dim" style="margin:-4px 0 12px;font-size:13.5px">For programs that call this app: mobile apps, scripts, other servers. Send <code>Authorization: Bearer foyr_...</code></p>
-<div class="list"><div><span class="t"><b>mobile-app</b><span class="sha">foyr_live_8f3a…</span></span><span class="r">used 4m ago</span></div>
-<div><span class="t"><b>nightly-sync</b><span class="sha">foyr_live_c21e…</span></span><span class="r">used 9h ago</span></div></div></section>
-<section class="card"><h2>Paths that skip login</h2><p class="dim" style="margin:-4px 0 12px;font-size:13.5px">For webhooks and health checks that can't sign in.</p>
-<div class="list"><div><span class="t"><code>/webhooks/*</code></span><span class="r">public</span></div><div><span class="t"><code>/api/health</code></span><span class="r">public</span></div></div></section></div>
+<section class="card"><h2>API tokens <span class="soon">Coming soon</span></h2>
+<p class="dim" style="margin:-4px 0 0;font-size:13.5px">For programs that call this app: mobile apps, scripts, other servers. They will send <code>Authorization: Bearer foyr_...</code></p></section>
+<section class="card"><h2>Paths that skip login <span class="soon">Coming soon</span></h2><p class="dim" style="margin:-4px 0 0;font-size:13.5px">For webhooks and health checks that can't sign in.</p></section></div>
 </div>{{template "endframe" .}}{{template "foot"}}{{end}}

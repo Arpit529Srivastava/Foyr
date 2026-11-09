@@ -446,6 +446,8 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 
 **Consequences:** The `web` ECR repository stays unused for now. Dashboard changes deploy with foyrd.
 
+**Update 2026-11-09:** the Access tab is real now (access mode, people, invites, revoke, remove), behind the founder sign-in, with every change scoped to the app's account and written to the audit trail as `founder`. API tokens and login-skipping paths there are marked Coming soon. Customer sign-in to the dashboard is still to do.
+
 ## ADR-035: Magic-link login
 **Date:** 2026-10-25 · **Status:** Accepted · **Builds on:** ADR-006, ADR-026, ADR-034 · **Spec:** docs/superpowers/plans/2026-10-19-login.md
 
