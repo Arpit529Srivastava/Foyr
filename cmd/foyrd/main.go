@@ -145,7 +145,7 @@ func newPool(ctx context.Context, cfg *config.Config, st *store.Store, log *slog
 				Logs:     logs,
 				Tokens:   &github.App{ID: cfg.GitHubAppID, Key: cfg.GitHubPrivateKey, BaseURL: cfg.GitHubAPIURL},
 			},
-			store.JobDeploy: &apprun.Runner{Store: st, Platform: rt, Logs: logs, LogGroup: cfg.AppsLogGroup, Region: cfg.AWSRegion},
+			store.JobDeploy: &apprun.Runner{Store: st, Platform: rt, Logs: logs, LogGroup: cfg.AppsLogGroup, Region: cfg.AWSRegion, AuthURL: cfg.AuthURL},
 			store.JobRetire: &apprun.Retirer{Store: st, Platform: rt},
 		},
 		Log:     log,

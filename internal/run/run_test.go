@@ -146,6 +146,7 @@ var (
 
 func TestDeployGoesLive(t *testing.T) {
 	rg := newRig(t, provisioning, running, healthy)
+	rg.r.AuthURL = "https://auth.example.test"
 	d := rg.run(t, rg.built(t, 1))
 	if d.Status != store.StatusLive || d.ECSService != "d-1" || d.TaskDefinition != "arn:aws:ecs:task-definition/app-1:1" || d.LiveAt == nil {
 		t.Fatalf("deployment = %+v", d)
@@ -153,6 +154,13 @@ func TestDeployGoesLive(t *testing.T) {
 	spec := rg.pf.specs[0]
 	if spec.Family != "app-1" || spec.Image != d.ImageURI || spec.Env["PORT"] != "3000" || spec.LogPrefix != "app-1" {
 		t.Fatalf("task spec = %+v", spec)
+	}
+	app, err := rg.st.GetApp(context.Background(), d.AppID)
+	if err != nil || app.Slug == "" {
+		t.Fatalf("app = %+v, err = %v", app, err)
+	}
+	if spec.Env["FOYR_APP_SLUG"] != app.Slug || spec.Env["FOYR_AUTH_URL"] != "https://auth.example.test" {
+		t.Fatalf("env = %v, want slug %q and the auth URL", spec.Env, app.Slug)
 	}
 	if s := rg.pf.services[0]; s.Name != "d-1" || s.AppID != 1 || s.DeploymentID != 1 {
 		t.Fatalf("service spec = %+v", s)
@@ -164,6 +172,44 @@ func TestDeployGoesLive(t *testing.T) {
 	}
 	if a, _ := rg.st.GetApp(context.Background(), d.AppID); a.LiveDeployment != d.ID {
 		t.Fatalf("app live deployment = %d", a.LiveDeployment)
+	}
+}
+
+func TestAppEnv(t *testing.T) {
+	for _, c := range []struct {
+		name, slug, auth string
+		want             map[string]string
+	}{
+		{"with auth", "shop", "https://auth.example.test", map[string]string{"PORT": "3000", "NODE_ENV": "production",
+			"FOYR_APP_SLUG": "shop", "FOYR_AUTH_URL": "https://auth.example.test"}},
+		{"without auth", "shop", "", map[string]string{"PORT": "3000", "NODE_ENV": "production", "FOYR_APP_SLUG": "shop"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got := appEnv(c.slug, c.auth)
+			if len(got) != len(c.want) {
+				t.Fatalf("env = %v, want %v", got, c.want)
+			}
+			for k, v := range c.want {
+				if got[k] != v {
+					t.Fatalf("env[%s] = %q, want %q", k, got[k], v)
+				}
+			}
+		})
+	}
+}
+
+func TestDeployFailsWithoutASlug(t *testing.T) {
+	rg := newRig(t, healthy)
+	d := rg.built(t, 1)
+	if _, err := rg.st.Pool.Exec(context.Background(), "UPDATE apps SET slug = NULL WHERE id = $1", d.AppID); err != nil {
+		t.Fatal(err)
+	}
+	got := rg.run(t, d)
+	if got.Status != store.StatusFailed || got.FailureStep != "Start" {
+		t.Fatalf("deployment = %+v", got)
+	}
+	if len(rg.pf.specs) != 0 {
+		t.Fatal("no task definition may be registered without a slug")
 	}
 }
 
