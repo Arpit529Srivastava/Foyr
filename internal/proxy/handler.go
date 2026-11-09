@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
-	"strconv"
 	"strings"
 	"time"
 
@@ -61,6 +60,7 @@ type ctxKey struct{}
 type route struct {
 	slug, upstream string
 	id             *identity // nil: the visitor is unknown
+	assertion      string    // signed identity for the app, empty when id is nil
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -86,13 +86,22 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log := obs.Logger(r.Context()).With("app", s, "upstream", up)
 	ctx := obs.WithLogger(r.Context(), log)
 	var id *identity
+	var assertion string
 	if h.Auth != nil {
 		var done bool
 		if id, done = h.authorize(w, r, s); done {
 			return
 		}
+		if id != nil {
+			var err error
+			if assertion, err = h.Auth.assertion(s, id); err != nil {
+				log.Error("signing the identity assertion failed", "err", err)
+				page(w, http.StatusInternalServerError, "Something went wrong", "Foyr could not complete this request. Try again in a moment.")
+				return
+			}
+		}
 	}
-	h.proxy.ServeHTTP(w, r.WithContext(withRoute(ctx, route{slug: s, upstream: up, id: id})))
+	h.proxy.ServeHTTP(w, r.WithContext(withRoute(ctx, route{slug: s, upstream: up, id: id, assertion: assertion})))
 }
 
 // slugFor extracts the app slug from host, or false if host isn't <slug>.<Domain>.
@@ -123,9 +132,10 @@ func (h *Handler) rewrite(pr *httputil.ProxyRequest) {
 		}
 	}
 	if rt.id != nil {
-		pr.Out.Header.Set("X-Foyr-User-Id", strconv.FormatInt(rt.id.userID, 10))
+		pr.Out.Header.Set("X-Foyr-User-Id", rt.id.publicID)
 		pr.Out.Header.Set("X-Foyr-Email", rt.id.email)
 		pr.Out.Header.Set("X-Foyr-Role", rt.id.role)
+		pr.Out.Header.Set("X-Foyr-Assertion", rt.assertion)
 	}
 	// The session token is for authproxy; the app never sees it.
 	dropCookie(pr.Out.Header, SessionCookie)

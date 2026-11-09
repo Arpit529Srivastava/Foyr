@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"crypto/ecdsa"
 	"crypto/ed25519"
 	"encoding/base64"
 	"errors"
@@ -8,6 +9,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/Arpit529Srivastava/Foyr/internal/authn"
 )
 
 // Config is authproxy's settings, from environment variables.
@@ -24,6 +27,7 @@ type Config struct {
 	FoyrdURL         string            // FOYR_FOYRD_URL: base of foyrd's internal listener; RoutesURL defaults to it plus /internal/routes
 	AuthURL          string            // FOYR_AUTH_URL: where visitors sign in
 	SessionPublicKey ed25519.PublicKey // FOYR_SESSION_PUBLIC_KEY: 32 bytes, base64
+	AssertionKey     *ecdsa.PrivateKey // FOYR_ASSERTION_KEY: signs identity assertions, base64 PKCS#8 P-256
 }
 
 // AuthOn reports whether authproxy checks logins.
@@ -87,6 +91,13 @@ func loadAuth(c *Config, getenv func(string) string) []error {
 		errs = append(errs, errors.New("FOYR_SESSION_PUBLIC_KEY must be 32 bytes in base64"))
 	} else {
 		c.SessionPublicKey = pub
+	}
+	if v := strings.TrimSpace(getenv("FOYR_ASSERTION_KEY")); v == "" {
+		errs = append(errs, errors.New("FOYR_ASSERTION_KEY is not set (needed once FOYR_SESSION_PUBLIC_KEY is)"))
+	} else if k, err := authn.ParseAssertionKey(v); err != nil {
+		errs = append(errs, errors.New("FOYR_ASSERTION_KEY must be a base64 PKCS#8 P-256 private key"))
+	} else {
+		c.AssertionKey = k
 	}
 	c.AuthURL = strings.TrimRight(strings.TrimSpace(getenv("FOYR_AUTH_URL")), "/")
 	u, uerr := url.Parse(c.AuthURL)

@@ -1,8 +1,10 @@
 package proxy
 
 import (
+	"crypto/ecdsa"
 	"crypto/ed25519"
 	"encoding/json"
+	"errors"
 	"html"
 	"net/http"
 	"net/url"
@@ -31,6 +33,8 @@ type Auth struct {
 	AuthURL   string // https://auth.<PLATFORM_DOMAIN>
 	Exchanger Exchanger
 	Now       func() time.Time
+
+	AssertionKey *ecdsa.PrivateKey // signs the identity assertion sent to apps
 }
 
 func (a *Auth) now() time.Time {
@@ -42,9 +46,10 @@ func (a *Auth) now() time.Time {
 
 // identity is what the app is told about the visitor.
 type identity struct {
-	userID int64
-	email  string
-	role   string
+	userID   int64
+	publicID string // usr_ id, the only user id apps see
+	email    string
+	role     string
 }
 
 // session returns the visitor's claims when the cookie is a genuine, unexpired token for this app.
@@ -54,10 +59,18 @@ func (a *Auth) session(r *http.Request, slug string) (authn.Claims, bool) {
 		return authn.Claims{}, false
 	}
 	claims, err := authn.Verify(a.PublicKey, c.Value, a.now())
-	if err != nil || claims.Slug != slug {
+	if err != nil || claims.Slug != slug || claims.PublicID == "" { // no pid: issued before the contract, sign in again
 		return authn.Claims{}, false
 	}
 	return claims, true
+}
+
+// assertion signs a short-lived statement of who the visitor is for this app.
+func (a *Auth) assertion(slug string, id *identity) (string, error) {
+	if a.AssertionKey == nil {
+		return "", errors.New("no assertion key")
+	}
+	return authn.SignAssertion(a.AssertionKey, authn.NewAssertion(a.AuthURL, slug, id.publicID, id.email, id.role, a.now()))
 }
 
 func (a *Auth) loginURL(slug, ret string) string {
@@ -93,7 +106,7 @@ func (h *Handler) authorize(w http.ResponseWriter, r *http.Request, slug string)
 		if !member {
 			role = "viewer"
 		}
-		id = &identity{userID: claims.UserID, email: claims.Email, role: role}
+		id = &identity{userID: claims.UserID, publicID: claims.PublicID, email: claims.Email, role: role}
 	}
 	switch {
 	case app.Mode == "public":
