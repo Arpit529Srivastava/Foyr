@@ -338,6 +338,11 @@ func TestKeySetServedOnTheAuthHostOnly(t *testing.T) {
 			t.Errorf("%s = %d, want 404", host, rec.Code)
 		}
 	}
+	head := keySetReq(on, http.MethodHead, "auth.test")
+	if head.Code != http.StatusOK || head.Body.Len() != 0 || head.Header().Get("Cache-Control") != "public, max-age=300" ||
+		head.Header().Get("Content-Type") != "application/json" || head.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Errorf("HEAD = %d %q %v", head.Code, head.Body, head.Header())
+	}
 	if rec := keySetReq(on, http.MethodPost, "auth.test"); rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("POST = %d, want 405", rec.Code)
 	}

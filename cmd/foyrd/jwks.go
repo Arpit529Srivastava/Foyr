@@ -11,8 +11,8 @@ import (
 func jwksHandler(keys []*ecdsa.PublicKey) http.Handler {
 	body := authn.JWKS(keys)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.Header().Set("Allow", http.MethodGet)
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.Header().Set("Allow", "GET, HEAD")
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -20,6 +20,8 @@ func jwksHandler(keys []*ecdsa.PublicKey) http.Handler {
 		h.Set("Content-Type", "application/json")
 		h.Set("Cache-Control", "public, max-age=300")
 		h.Set("Access-Control-Allow-Origin", "*")
-		w.Write(body)
+		if r.Method == http.MethodGet {
+			w.Write(body)
+		}
 	})
 }

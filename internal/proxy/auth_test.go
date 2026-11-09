@@ -80,6 +80,7 @@ func newAuthRig(t *testing.T) *authRig {
 		t.Fatal(err)
 	}
 	g := &authRig{priv: priv, apub: &akey.PublicKey, exch: &fakeExchanger{token: "TOK", exp: time.Now().Add(7 * 24 * time.Hour).Truncate(time.Second)}}
+	g.exch.token = g.session("crm", 7, "cb")
 	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		g.hits++
 		_ = json.NewEncoder(w).Encode(echo{Headers: r.Header, Cookie: r.Header.Get("Cookie"), Path: r.URL.RequestURI()})
@@ -358,7 +359,7 @@ func TestCallback(t *testing.T) {
 		t.Fatalf("cookies = %v", cs)
 	}
 	c := cs[0]
-	if c.Name != testCookie || c.Value != "TOK" || !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode || c.Path != "/" || c.Domain != "" {
+	if c.Name != testCookie || c.Value != g.exch.token || !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode || c.Path != "/" || c.Domain != "" {
 		t.Errorf("cookie = %+v", c)
 	}
 	if !c.Expires.Equal(g.exch.exp) {
@@ -612,5 +613,59 @@ func TestSigningFailureAnswers500AndForwardsNothing(t *testing.T) {
 	}
 	if g.hits != 0 {
 		t.Error("the request was forwarded")
+	}
+}
+
+func TestCallbackRefusesATokenWithoutPublicID(t *testing.T) {
+	g := newAuthRig(t)
+	g.exch.token = g.sessionFor("crm", 7, "s1", "")
+	w := g.do("GET", "crm."+testDomain, "/__foyr/callback?code=abc")
+	if w.Code != http.StatusBadGateway || strings.Contains(w.Body.String(), g.exch.token) {
+		t.Errorf("status %d, want 502 and no token in the page", w.Code)
+	}
+	if len(w.Result().Cookies()) != 0 || w.Header().Get("Set-Cookie") != "" {
+		t.Error("a cookie was set")
+	}
+	if g.hits != 0 {
+		t.Error("the app was hit")
+	}
+}
+
+func TestCallbackRefusesABadToken(t *testing.T) {
+	g := newAuthRig(t)
+	_, otherPriv, _ := ed25519.GenerateKey(rand.Reader)
+	for name, tok := range map[string]string{
+		"garbage":   "v1.x.y",
+		"wrong key": authn.Sign(otherPriv, authn.Claims{SID: "s", UserID: 7, PublicID: testPID, Slug: "crm", Exp: time.Now().Add(time.Hour).Unix()}),
+	} {
+		g.exch.token = tok
+		w := g.do("GET", "crm."+testDomain, "/__foyr/callback?code=abc")
+		if w.Code != http.StatusBadGateway || len(w.Result().Cookies()) != 0 {
+			t.Errorf("%s: status %d cookies %v, want 502 and none", name, w.Code, w.Result().Cookies())
+		}
+	}
+	if g.hits != 0 {
+		t.Error("the app was hit")
+	}
+}
+
+func TestConnectionHeaderCannotStripIdentity(t *testing.T) {
+	g := newAuthRig(t)
+	conns := []string{"X-Foyr-Assertion", "X-Foyr-User-Id", "X-Foyr-Role, X-Foyr-Email",
+		"X-Foyr-Assertion, X-Foyr-User-Id, X-Foyr-Role, X-Foyr-Email, close"}
+	for _, c := range conns {
+		e := seen(t, g.do("GET", "crm."+testDomain, "/", withHeader("Connection", c), withCookie(testCookie+"="+g.session("crm", 7, "s1"))))
+		if e.Headers.Get("X-Foyr-User-Id") != testPID || e.Headers.Get("X-Foyr-Email") != "ana@example.com" || e.Headers.Get("X-Foyr-Role") != "admin" {
+			t.Errorf("Connection %q: identity headers = %v", c, e.Headers)
+		}
+		if _, err := authn.VerifyAssertion(authn.KeySet([]*ecdsa.PublicKey{g.apub}), e.Headers.Get("X-Foyr-Assertion"), testAuthURL, "crm", time.Now()); err != nil {
+			t.Errorf("Connection %q: assertion: %v", c, err)
+		}
+		an := seen(t, g.do("GET", "blog."+testDomain, "/", withHeader("Connection", c)))
+		for _, k := range []string{"X-Foyr-User-Id", "X-Foyr-Email", "X-Foyr-Role", "X-Foyr-Assertion"} {
+			if _, ok := an.Headers[k]; ok {
+				t.Errorf("Connection %q: anonymous got %s", c, k)
+			}
+		}
 	}
 }

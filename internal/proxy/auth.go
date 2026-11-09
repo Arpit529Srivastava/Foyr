@@ -157,6 +157,16 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request, slug string) 
 		h.expired(w, slug)
 		return
 	}
+	// A token without a public id would be refused by session() and loop the visitor; foyrd may be an older build.
+	claims, verr := authn.Verify(h.Auth.PublicKey, token, h.Auth.now())
+	if verr == nil && claims.PublicID == "" {
+		verr = errors.New("token has no public id")
+	}
+	if verr != nil {
+		obs.Logger(r.Context()).Error("sign-in token refused", "reason", verr.Error())
+		page(w, http.StatusBadGateway, "Sign-in unavailable", "Foyr could not finish signing you in. Try again in a minute.")
+		return
+	}
 	http.SetCookie(w, &http.Cookie{Name: SessionCookie, Value: token, Path: "/", Expires: exp,
 		Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	w.Header().Set("Cache-Control", "no-store")
