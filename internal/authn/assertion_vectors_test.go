@@ -229,6 +229,15 @@ func TestVectorsFile(t *testing.T) {
 	names := map[string]bool{}
 	for _, tc := range v.Valid {
 		names[tc.Name] = true
+		if tc.Name == "high-s-signature-accepted" {
+			sig, err := base64.RawURLEncoding.DecodeString(strings.Split(tc.Token, ".")[2])
+			if err != nil || len(sig) != 64 {
+				t.Fatalf("high-s vector signature: %d bytes, %v", len(sig), err)
+			}
+			if new(big.Int).SetBytes(sig[32:]).Cmp(new(big.Int).Rsh(elliptic.P256().Params().N, 1)) <= 0 {
+				t.Errorf("high-s-signature-accepted vector is not high-S")
+			}
+		}
 		got, err := VerifyAssertion(keys, tc.Token, v.Issuer, v.Audience, now)
 		if err != nil || got != tc.Claims {
 			t.Errorf("valid %s: %+v %v", tc.Name, got, err)
