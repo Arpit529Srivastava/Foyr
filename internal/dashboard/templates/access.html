@@ -1,32 +1,24 @@
 {{define "access.html"}}{{template "head" .}}{{template "frame" .}}{{template "apphead" .}}
-<style>.modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.modes form{display:contents}
-.mode{border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;gap:12px;background:none;color:inherit;font:inherit;text-align:left;width:100%;min-width:0;white-space:normal;align-items:flex-start;height:auto}
-button.mode{cursor:pointer}.mode.on{border-color:var(--a);background:#f5a5240a}.mode i{width:16px;height:16px;border-radius:50%;border:2px solid var(--line2);flex:none;margin-top:2px}.mode.on i{border:5px solid var(--a)}
-.mode b{display:block;font-weight:550}.mode .d{display:block;margin:2px 0 0;color:var(--dim);font-size:13.5px;font-weight:400}
-.inv{display:flex;gap:8px;flex-wrap:wrap}.inv input{flex:1;min-width:200px}
-.person{display:flex;align-items:center;gap:10px}.person .av{width:28px;height:28px;border-radius:50%;font-size:12px}
-.role{font-size:12.5px;color:var(--dim);border:1px solid var(--line);border-radius:7px;padding:2px 8px;text-transform:capitalize}
-.soon{font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:7px;padding:2px 8px;font-weight:400}
-.err{border:1px solid #ef444466;background:#ef44440d;border-radius:var(--r);padding:12px 16px;font-size:13.5px}
-code{font:12.5px var(--mono);background:var(--raise);border-radius:6px;padding:2px 6px;color:var(--a2)}
-@media (max-width:860px){.modes{grid-template-columns:minmax(0,1fr)}}</style>
+<style>.mode{all:unset;box-sizing:border-box;padding:14px 16px;display:flex;gap:11px;cursor:pointer;background:var(--panel);align-items:flex-start;min-width:0}.mode:hover{background:var(--card)}.mode:focus-visible{outline:2px solid var(--a);outline-offset:-2px}
+.modes form{display:contents}.mode.on{background:linear-gradient(135deg,#f5a5241f,transparent 70%),var(--panel)}.mode i{width:13px;height:13px;border:1px solid var(--line2);flex:none;margin-top:3px}.mode.on i{background:var(--lit);border-color:var(--a)}
+.mode b{display:block;font-weight:500}.mode .d{display:block;margin:1px 0 0;color:var(--dim)}</style>
 {{$base := printf "/dashboard/%s/%s/access" .S.Account.Login .S.App.Slug}}
 <div class="stack">
 {{if .Error}}<p class="err" role="alert"><b>Not done.</b> {{.Error}}</p>{{end}}
-<section class="card"><h2>Who can open this app</h2><div class="modes">
+<section class="card flush"><h2>Who can open this app</h2><div class="sheet c2 modes" style="border:0;border-radius:0">
 <form method="post" action="{{$base}}/mode"><button class="mode{{if ne .S.App.AccessMode "public"}} on{{end}}" name="mode" value="private"><i></i><span><b>Members only</b><span class="d">Everyone signs in with a magic link. Only people you invite get in.</span></span></button></form>
 <form method="post" action="{{$base}}/mode"><button class="mode{{if eq .S.App.AccessMode "public"}} on{{end}}" name="mode" value="public"><i></i><span><b>Public</b><span class="d">Anyone can open it. Signed-in visitors still get identity headers.</span></span></button></form></div></section>
-<section class="card"><h2>People <small>{{len .Members}} member{{if ne (len .Members) 1}}s{{end}}, {{len .Invites}} invited</small></h2>
-<form class="inv" method="post" action="{{$base}}/invites"><input name="email" type="email" required aria-label="Email" placeholder="teammate@company.com" autocomplete="off">
+<section class="card flush"><h2>People <small>{{len .Members}} member{{if ne (len .Members) 1}}s{{end}}, {{len .Invites}} invited</small></h2>
+<form class="inv pad" method="post" action="{{$base}}/invites"><input name="email" type="email" required aria-label="Email" placeholder="teammate@company.com" autocomplete="off">
 <select name="role" aria-label="Role">{{range .Roles}}<option value="{{.}}">{{.}}</option>{{end}}</select><button class="btn primary">Send invite</button></form>
-<div class="scroll" style="margin-top:14px"><table><thead><tr><th>Person</th><th>Role</th><th>Since</th><th></th></tr></thead><tbody>
+<div class="scroll pad-t"><table class="rows"><thead><tr><th>Person</th><th>Role</th><th>Since</th><th></th></tr></thead><tbody>
 {{range .Members}}<tr><td><span class="person"><span class="av">{{initial .Email}}</span>{{.Email}}</span></td><td><span class="role">{{.Role}}</span></td><td class="dim">{{since $.Now .CreatedAt}}</td>
 <td style="text-align:right"><form method="post" action="{{$base}}/members/{{.UserID}}/remove"><button>Remove</button></form></td></tr>{{end}}
-{{range .Invites}}<tr><td><span class="person"><span class="av" style="background:var(--raise);color:var(--dim)">{{initial .Email}}</span>{{.Email}}</span></td><td><span class="role">{{.Role}}</span></td><td class="faint">Invited {{since $.Now .CreatedAt}}, not accepted</td>
+{{range .Invites}}<tr><td><span class="person"><span class="av off">{{initial .Email}}</span>{{.Email}}</span></td><td><span class="role">{{.Role}}</span></td><td class="faint">Invited {{since $.Now .CreatedAt}}, not accepted</td>
 <td style="text-align:right"><form method="post" action="{{$base}}/invites/{{.ID}}/revoke"><button>Revoke</button></form></td></tr>{{end}}
 {{if and (not .Members) (not .Invites)}}<tr><td colspan="4" class="dim">No one yet. Invite a teammate above.</td></tr>{{end}}</tbody></table></div></section>
 <div class="stack two">
 <section class="card"><h2>API tokens <span class="soon">Coming soon</span></h2>
-<p class="dim" style="margin:-4px 0 0;font-size:13.5px">For programs that call this app: mobile apps, scripts, other servers. They will send <code>Authorization: Bearer foyr_...</code></p></section>
-<section class="card"><h2>Paths that skip login <span class="soon">Coming soon</span></h2><p class="dim" style="margin:-4px 0 0;font-size:13.5px">For webhooks and health checks that can't sign in.</p></section></div>
+<p class="dim" style="margin:0">For programs that call this app: mobile apps, scripts, other servers. They will send <code>Authorization: Bearer foyr_...</code></p></section>
+<section class="card"><h2>Paths that skip login <span class="soon">Coming soon</span></h2><p class="dim" style="margin:0">For webhooks and health checks that can't sign in.</p></section></div>
 </div>{{template "endframe" .}}{{template "foot"}}{{end}}

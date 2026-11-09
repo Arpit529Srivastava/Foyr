@@ -23,7 +23,7 @@ import (
 //go:embed templates/*.html
 var files embed.FS
 
-var pages = template.Must(template.ParseFS(files, "templates/*.html"))
+var pages = template.Must(template.New("").Funcs(template.FuncMap{"consoleHead": ui.ConsoleHead}).ParseFS(files, "templates/*.html"))
 
 // Store is what login needs from the data layer.
 type Store interface {

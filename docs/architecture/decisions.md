@@ -485,3 +485,17 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Update 2026-11-09 (step 2):** the dashboard takes a `Person` (founder, or a customer with a role per account) instead of a yes or no. Accounts the person is not linked to do not exist for that request, so every page and post answers 404 for them. A member's posts answer 403 after that, and the audit trail names the person. Wired to the founder sign-in only, so users see no change yet.
 
 **Update 2026-11-09 (step 3):** customers can sign in. Pages: `/dashboard/login`, `/dashboard/login/verify`, `/dashboard/logout`, served only on the dashboard host (`https://app.<PLATFORM_DOMAIN>`, taken from `FOYR_AUTH_URL` like the site URL; `http://localhost:<port>` in development), where `/` goes to `/dashboard`. Cookie `__Host-foyr_dash`. The founder links an email to an account at `/founder/accounts`. A signed-out visitor on the dashboard host is sent to the customer sign-in; on any other host to the founder sign-in. Rate limits as for app login (3 emails per address, 10 posts per IP, 15 minutes), now in `web.Window`. A GitHub account named `login` would be shadowed by `/dashboard/login`.
+
+## ADR-037: One console design, self-hosted fonts
+
+**Decision:**
+- The customer dashboard, founder page and sign-in pages share one stylesheet, `internal/ui/console.css`, put in each page by `ui.ConsoleHead`. A page's own `<style>` holds only what is unique to it.
+- The look follows foyr.online (black, amber `#f5a524`, Inter, Geist Mono), with greys warmed toward the amber. Panels share hairlines, corners stay at 8px or less, status marks are squares taken from the logo's pixels. Gradients appear only on the primary action and on things that are live or measured. Mono is for machine values such as commits and addresses.
+- An app's deployments are drawn as a ledger of squares, and the one serving traffic is lit.
+- foyrd serves Inter and Geist Mono (latin, variable, SIL OFL, licences beside the files) at `/assets/`, cached for 30 days. The CSP gains `font-src 'self'`; no third-party font host is allowed.
+
+**Why:** Two copies of the CSS had drifted, and the pages named Inter without ever loading it, so most visitors got a system font. Self-hosting keeps `default-src 'none'` meaningful and sends no visitor data to a font CDN.
+
+**Consequences:** About 80 KB of fonts per browser, once a month. foyr.online is unchanged and keeps its own Next.js fonts. New console pages reuse `.card`, `.sheet`, `.list`, `.steps` before adding CSS.
+
+**Update 2026-11-09 (themes):** the console has a light theme. Each colour token holds both values with CSS `light-dark()`, and `data-theme="light"` on `<html>` switches `color-scheme`. Dark stays the default, as on foyr.online. The sidebar button saves the choice in `localStorage` (per host), and a script allowed by the page's nonce applies it before first paint. Magic-link sign-in pages (app login and dashboard sign-in) have no switch and stay dark, because their answers must be byte-identical whether or not an email has an account, and a nonce in the body would break that. Content fills the window.

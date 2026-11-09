@@ -3,10 +3,10 @@
 <style>.add{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;gap:8px}.mask{font:13px var(--mono);color:var(--faint);letter-spacing:.1em}
 @media (max-width:860px){.add{grid-template-columns:minmax(0,1fr)}}</style>
 <div class="stack"><section class="card"><h2>Add a variable</h2><div class="add"><input disabled placeholder="KEY, e.g. STRIPE_SECRET_KEY"><input disabled placeholder="Value"><button class="btn primary" disabled>Save</button></div></section>
-<section class="card"><h2>Variables <small>Changes apply on the next deploy</small></h2><div class="scroll"><table><thead><tr><th>Key</th><th>Value</th><th>Updated</th><th></th></tr></thead><tbody>
-<tr><td class="sha" style="color:var(--text)">DATABASE_URL</td><td><span class="badge">Set by Foyr</span></td><td class="dim">when the database was added</td><td></td></tr>
+<section class="card flush"><h2>Variables <small>Changes apply on the next deploy</small></h2><div class="scroll"><table class="rows"><thead><tr><th>Key</th><th>Value</th><th>Updated</th><th></th></tr></thead><tbody>
+<tr><td class="sha" style="color:var(--text)">DATABASE_URL</td><td><span class="soon">Set by Foyr</span></td><td class="dim">when the database was added</td><td></td></tr>
 <tr><td class="sha" style="color:var(--text)">STRIPE_SECRET_KEY</td><td class="mask">••••••••••••</td><td class="dim">3d ago by ana</td><td style="text-align:right"><button disabled>Edit</button></td></tr>
 <tr><td class="sha" style="color:var(--text)">RESEND_API_KEY</td><td class="mask">••••••••••••</td><td class="dim">5d ago by ravi</td><td style="text-align:right"><button disabled>Edit</button></td></tr>
 <tr><td class="sha" style="color:var(--text)">LOG_LEVEL</td><td class="sha">info</td><td class="dim">5d ago by ravi</td><td style="text-align:right"><button disabled>Edit</button></td></tr>
-<tr><td class="sha" style="color:var(--text)">PORT</td><td><span class="badge">Set by Foyr</span></td><td class="dim">always 3000</td><td></td></tr></tbody></table></div></section></div>
+<tr><td class="sha" style="color:var(--text)">PORT</td><td><span class="soon">Set by Foyr</span></td><td class="dim">always 3000</td><td></td></tr></tbody></table></div></section></div>
 {{template "endframe" .}}{{template "foot"}}{{end}}

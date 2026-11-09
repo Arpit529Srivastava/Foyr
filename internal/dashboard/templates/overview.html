@@ -1,42 +1,31 @@
 {{define "overview.html"}}{{template "head" .}}{{template "frame" .}}{{template "apphead" .}}
-<style>.prod{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:24px;padding:0;overflow:hidden}
-.shot{margin:16px 0 16px 16px;border:1px solid var(--line);border-radius:14px;background:#050505;overflow:hidden;display:flex;flex-direction:column;min-height:250px}
-.shot .bar{display:flex;align-items:center;gap:6px;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--panel)}
-.shot .bar i{width:9px;height:9px;border-radius:50%;background:var(--line2)}
-.shot .bar span{margin-left:10px;flex:1;font-size:12px;color:var(--dim);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:3px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.shot .view{flex:1;display:grid;place-items:center;text-align:center;padding:24px;background:radial-gradient(420px 220px at 50% 110%,#f5a5241f,transparent 70%)}
-.shot .view .logo{width:46px;height:46px;margin:0 auto 12px}.shot .view b{display:block;font-size:20px;font-weight:550;letter-spacing:-.02em}
-.shot .view small{color:var(--dim)}.shot .lock{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12.5px;color:var(--a2);border:1px solid #f5a52433;border-radius:999px;padding:3px 10px}
-.shot .lock svg{width:13px;height:13px}
-.prod .facts{padding:22px 22px 22px 0;align-content:center}
-.prod .facts dd a{color:var(--text)}.prod .facts dd a:hover{color:var(--a2)}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.stat{padding:16px 18px}
-.stat small{display:block;color:var(--faint);font-size:12.5px}.stat b{display:block;font-size:24px;font-weight:550;letter-spacing:-.02em;margin-top:4px}
-@media (max-width:860px){.prod{grid-template-columns:minmax(0,1fr)}.shot{margin:14px 14px 0}.prod .facts{padding:6px 18px 20px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>
+<style>.prod{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}.door{padding:18px 20px;display:flex;flex-direction:column;gap:16px;justify-content:space-between;min-height:176px}
+.door.lit{background:radial-gradient(420px 220px at 0 100%,var(--wash),transparent 75%),var(--panel)}
+.door .addr{font-size:19px;font-weight:500;letter-spacing:-.02em;display:block;overflow-wrap:anywhere}.door .sub{color:var(--dim);margin:3px 0 0}
+.door small{display:block;color:var(--faint);font-size:12px;margin-bottom:7px}.prod .facts{padding:18px 20px;align-content:center}.prod .facts dd a:hover{color:var(--a2)}
+@media (max-width:860px){.prod{grid-template-columns:minmax(0,1fr)}}</style>
 <div class="stack">
-<section class="card prod rise"><div class="shot"><div class="bar"><i></i><i></i><i></i><span>https://{{.S.App.Slug}}.{{.Domain}}</span></div>
-<div class="view"><div>{{template "logo"}}<b>{{.S.App.Slug}}</b><small>{{if .Live}}Serving deployment #{{.Live.ID}}{{else}}Nothing live yet. Push to {{.S.App.DefaultBranch}} to deploy.{{end}}</small><br>
-<span class="lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>HTTPS{{if .Live}}, login in front soon{{end}}</span></div></div></div>
+<section class="sheet prod"><div class="door{{if .Live}} lit{{end}}"><div>
+{{if .Live}}<a class="addr" href="https://{{.S.App.Slug}}.{{.Domain}}">{{.S.App.Slug}}.{{.Domain}}</a><p class="sub">Serving deployment #{{.Live.ID}} to {{if eq .S.App.AccessMode "public"}}anyone{{else}}<a class="link" href="/dashboard/{{.S.Account.Login}}/{{.S.App.Slug}}/access">members only</a>{{end}}</p>
+{{else}}<span class="addr">Not live yet</span><p class="sub">Push to {{.S.App.DefaultBranch}} to deploy.</p>{{end}}</div>
+{{if .Ledger}}<div><small>Last {{len .Ledger}} deployment{{if ne (len .Ledger) 1}}s{{end}}, newest first</small><div class="ledger">{{range .Ledger}}<a class="t-{{.Status}}{{if .Current}} cur{{end}}" href="/dashboard/{{$.S.Account.Login}}/{{$.S.App.Slug}}/deployments/{{.ID}}" title="#{{.ID}} {{.Status}}, {{since $.Now .CreatedAt}}" aria-label="Deployment {{.ID}}, {{.Status}}"></a>{{end}}</div></div>{{end}}</div>
 <dl class="facts">{{with .Live}}
-<div><dt>Production</dt><dd>{{template "status" .Status}}</dd></div>
+<div><dt>Status</dt><dd>{{template "status" .Status}}</dd></div>
 <div><dt>Push to live</dt><dd>{{dur (between .CreatedAt .LiveAt)}}</dd></div>
-<div style="grid-column:1/-1"><dt>Domain</dt><dd><a href="https://{{$.S.App.Slug}}.{{$.Domain}}">{{$.S.App.Slug}}.{{$.Domain}}</a></dd></div>
-<div style="grid-column:1/-1"><dt>Source</dt><dd><span class="sha">{{.Branch}} {{short .CommitSHA}}</span> {{first .CommitMessage}}</dd></div>
+<div class="wide"><dt>Source</dt><dd><span class="sha">{{.Branch}} {{short .CommitSHA}}</span> {{first .CommitMessage}}</dd></div>
 <div><dt>Pushed by</dt><dd>{{or .PusherLogin "-"}}</dd></div><div><dt>Created</dt><dd>{{since $.Now .CreatedAt}}</dd></div>
-{{else}}<div style="grid-column:1/-1"><dt>Production</dt><dd class="dim">No live deployment</dd></div>
+<div class="wide"><dt>Address</dt><dd><a class="sha" href="https://{{$.S.App.Slug}}.{{$.Domain}}">https://{{$.S.App.Slug}}.{{$.Domain}}</a></dd></div>
+{{else}}<div class="wide"><dt>Status</dt><dd class="dim">No live deployment</dd></div>
 <div><dt>Branch</dt><dd>{{$.S.App.DefaultBranch}}</dd></div><div><dt>Repository</dt><dd>{{$.S.App.FullName}}</dd></div>{{end}}</dl></section>
-
-<div class="stats">
-<div class="card stat rise" style="animation-delay:60ms"><small>Deployments this week</small><b>{{.Stats.Week}}</b></div>
-<div class="card stat rise" style="animation-delay:100ms"><small>Median push to live</small><b>{{dur .Stats.Median}}</b></div>
-<div class="card stat rise" style="animation-delay:140ms"><small>Success rate</small><b>{{if .Stats.Finished}}{{.Stats.SuccessPct}}%{{else}}-{{end}}</b></div>
-<div class="card stat rise" style="animation-delay:180ms"><small>Resources</small><b style="font-size:17px;margin-top:9px">0.25 vCPU, 512 MB</b></div></div>
-
-{{with .Latest}}<section class="card"><h2><span>Latest deployment {{template "status" .Status}}</span><a href="/dashboard/{{$.S.Account.Login}}/{{$.S.App.Slug}}/deployments/{{.ID}}">Details</a></h2>
+<div class="sheet c4">
+<div class="stat"><b>{{.Stats.Week}}</b>Deployments this week</div>
+<div class="stat"><b>{{dur .Stats.Median}}</b>Median push to live</div>
+<div class="stat"><b>{{if .Stats.Finished}}{{.Stats.SuccessPct}}%{{else}}-{{end}}</b>Success rate</div>
+<div class="stat"><b class="sm">0.25 vCPU, 512 MB</b>Resources</div></div>
+{{with .Latest}}<section class="card"><h2><span>Latest deployment</span><a href="/dashboard/{{$.S.Account.Login}}/{{$.S.App.Slug}}/deployments/{{.ID}}">#{{.ID}} {{.Status}}</a></h2>
 <div class="steps">{{range $i, $s := $.Pipeline}}<div class="step s-{{.Status}}"><span class="n">{{.Name}}</span><span class="bar"><span class="sweep" style="left:{{.Left}}%;width:{{.Width}}%;animation-delay:{{delay $i 90}}ms"></span></span><span class="d">{{dur .Duration}}</span></div>
 {{else}}<p class="dim" style="margin:0">Waiting for a build worker.</p>{{end}}</div></section>{{end}}
-
-<section class="card"><h2>Deployments <a href="/dashboard/{{.S.Account.Login}}/{{.S.App.Slug}}/deployments">View all</a></h2>
+<section class="card flush"><h2>Deployments <a href="/dashboard/{{.S.Account.Login}}/{{.S.App.Slug}}/deployments">View all</a></h2>
 {{if .Rows}}<div class="list">{{range $i, $r := .Rows}}{{template "deprow" (row $i $.S.Account.Login $r $.Now false)}}{{end}}</div>
 {{else}}<div class="empty"><h3>No deployments yet</h3><p>Push to <b>{{.S.App.DefaultBranch}}</b> on {{.S.App.FullName}} and the build starts in seconds.</p></div>{{end}}</section>
 </div>{{template "endframe" .}}{{template "foot"}}{{end}}

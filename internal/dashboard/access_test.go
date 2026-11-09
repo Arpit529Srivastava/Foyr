@@ -272,3 +272,10 @@ func TestAccessTabIsNoLongerAPreview(t *testing.T) {
 		}
 	}
 }
+
+// On a phone a wide table would push Remove and Revoke off-screen, so the table is marked to stack.
+func TestPeopleTableStacksOnPhones(t *testing.T) {
+	if body := get(handler(true), "/dashboard/acme/crm/access").Body.String(); !strings.Contains(body, `<table class="rows">`) {
+		t.Fatal(`the people table needs class="rows"`)
+	}
+}

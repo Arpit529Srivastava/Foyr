@@ -27,6 +27,9 @@ const SidebarCookie = "foyr_dash_sidebar"
 // historyLimit is how many deployments an app's pages read.
 const historyLimit = 100
 
+// ledgerSize is how many deployments the overview draws as squares.
+const ledgerSize = 40
+
 // Data is what the dashboard reads; *store.Store satisfies it.
 type Data interface {
 	ListInstallations(ctx context.Context) ([]store.Installation, error)
@@ -83,14 +86,16 @@ var Tabs = []Tab{
 var files embed.FS
 
 var pages = template.Must(template.New("").Funcs(template.FuncMap{
-	"dur":     ui.Dur,
-	"since":   ui.Since,
-	"between": ui.Between,
-	"first":   ui.FirstLine,
-	"short":   func(s string) string { return s[:min(len(s), 7)] },
-	"initial": func(s string) string { return strings.ToUpper(s[:min(len(s), 1)]) },
-	"clock":   func(t time.Time) string { return t.UTC().Format("Jan 2, 15:04 UTC") },
-	"delay":   func(i, step int) int { return min(i*step, 900) },
+	"consoleHead": ui.ConsoleHead,
+	"themeButton": ui.ThemeButton,
+	"dur":         ui.Dur,
+	"since":       ui.Since,
+	"between":     ui.Between,
+	"first":       ui.FirstLine,
+	"short":       func(s string) string { return s[:min(len(s), 7)] },
+	"initial":     func(s string) string { return strings.ToUpper(s[:min(len(s), 1)]) },
+	"clock":       func(t time.Time) string { return t.UTC().Format("Jan 2, 15:04 UTC") },
+	"delay":       func(i, step int) int { return min(i*step, 900) },
 	"row": func(i int, login string, r Row, now time.Time, many bool) map[string]any {
 		return map[string]any{"I": i, "Login": login, "R": r, "Now": now, "Many": many}
 	},
@@ -328,6 +333,7 @@ func (h *Handler) app(w http.ResponseWriter, r *http.Request) {
 			data["Latest"], data["Pipeline"] = &list[0], ui.StepBars(steps, h.now())
 		}
 		data["Rows"] = rows(list[:min(len(list), 5)], s.App)
+		data["Ledger"] = rows(list[:min(len(list), ledgerSize)], s.App)
 	case "deployments":
 		f := r.URL.Query().Get("status")
 		var shown []store.Deployment

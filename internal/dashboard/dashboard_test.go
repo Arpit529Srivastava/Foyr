@@ -191,3 +191,10 @@ func TestEveryPageLinksTheFavicon(t *testing.T) {
 		}
 	}
 }
+
+func TestOverviewDrawsTheLedger(t *testing.T) {
+	body := get(handler(true), "/dashboard/acme/crm").Body.String()
+	if !strings.Contains(body, `class="t-live cur"`) || !strings.Contains(body, `class="t-failed"`) {
+		t.Fatalf("the ledger should mark the current deployment and failures:\n%s", body)
+	}
+}

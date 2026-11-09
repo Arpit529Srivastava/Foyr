@@ -1,8 +1,7 @@
 {{define "domains.html"}}{{template "head" .}}{{template "frame" .}}{{template "apphead" .}}
-<div class="stack"><section class="card"><h2>Domains</h2><div class="list">
-<div><span class="t"><svg viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2" width="16" height="16" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><b>{{.S.App.Slug}}.{{.Domain}}</b><span class="badge">Foyr address</span></span>
-<span class="r">{{if .Live}}<a href="https://{{.S.App.Slug}}.{{.Domain}}" style="color:var(--a2)">Visit</a>{{else}}<span class="faint">Live after the first deploy</span>{{end}}</span>
-<span class="m"><span>HTTPS certificate managed by Foyr, renews on its own</span></span><span></span></div></div></section>
-<section class="card"><h2>Add your own domain <small>Phase 2</small></h2><div class="inv" style="display:flex;gap:8px;flex-wrap:wrap"><input disabled style="flex:1;min-width:220px" placeholder="crm.yourcompany.com"><button class="btn" disabled>Add domain</button></div>
-<p class="dim" style="margin:12px 0 0;font-size:13.5px">You'll add one CNAME record at your DNS provider; Foyr issues the certificate and keeps login working on your domain.</p></section></div>
+<div class="stack"><section class="card flush"><h2>Domains</h2><div class="pad" style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap"><div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="chip c-live">Active</span><span class="sha" style="color:var(--text);font-size:13px">{{.S.App.Slug}}.{{.Domain}}</span><span class="badge">Foyr address</span></div>
+<div class="faint" style="font-size:12.5px;margin-top:3px">HTTPS certificate managed by Foyr, renews on its own</div></div>
+<div>{{if .Live}}<a class="btn" href="https://{{.S.App.Slug}}.{{.Domain}}">Visit</a>{{else}}<span class="faint">Live after the first deploy</span>{{end}}</div></div></section>
+<section class="card"><h2>Add your own domain <span class="soon">Phase 2</span></h2><div class="inv"><input disabled placeholder="crm.yourcompany.com"><button class="btn" disabled>Add domain</button></div>
+<p class="dim" style="margin:10px 0 0">You'll add one CNAME record at your DNS provider. Foyr issues the certificate and keeps login working on your domain.</p></section></div>
 {{template "endframe" .}}{{template "foot"}}{{end}}

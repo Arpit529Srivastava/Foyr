@@ -1,16 +1,15 @@
 {{define "settings.html"}}{{template "head" .}}{{template "frame" .}}{{template "apphead" .}}
-<style>.danger{border-color:#5a1d20}.danger h2{color:#ff8f93}</style>
 <div class="stack">
 <section class="card"><h2>General</h2>
 <div class="field"><span>App name<small>Also its address</small></span><span class="v">{{.S.App.Slug}}</span></div>
-<div class="field"><span>Repository</span><span><a href="https://github.com/{{.S.App.FullName}}" style="color:var(--a2)">{{.S.App.FullName}}</a></span></div>
+<div class="field"><span>Repository</span><span><a class="link" href="https://github.com/{{.S.App.FullName}}">{{.S.App.FullName}}</a></span></div>
 <div class="field"><span>Production branch<small>Pushes here deploy</small></span><span class="v">{{.S.App.DefaultBranch}}</span></div></section>
-<section class="card"><h2>Build and run <small>Editable soon</small></h2>
+<section class="card"><h2>Build and run <span class="soon">Editable soon</span></h2>
 <div class="field"><span>Builder</span><span>The repo's Dockerfile; without one, Foyr's Next.js build. <span class="faint">Node, Python and Go detection is next.</span></span></div>
 <div class="field"><span>Port<small>Your app listens on $PORT</small></span><span class="v">3000</span></div>
 <div class="field"><span>Health check<small>Must answer 2xx within 6 minutes</small></span><span class="v">/api/health, then /</span></div>
 <div class="field"><span>Size</span><span class="v">0.25 vCPU, 512 MB, x86_64</span></div>
 <div class="field"><span>Region</span><span>Mumbai (ap-south-1)</span></div>
 <div class="field"><span>Zero-downtime deploys</span><span>On. The old version keeps serving until the new one is healthy.</span></div></section>
-<section class="card danger"><h2>Delete this app</h2><p class="dim" style="margin:0 0 12px;font-size:13.5px">Stops it, frees {{.S.App.Slug}}.{{.Domain}} and removes its deployments. To keep the repo connected but stop deploys, remove it from the Foyr GitHub App instead.</p><button disabled>Delete {{.S.App.Slug}}</button></section>
+<section class="card" style="border-color:var(--bad-line)"><h2 style="border-color:var(--bad-line);color:var(--bad2)">Delete this app</h2><p class="dim" style="margin:0 0 12px">Stops it, frees {{.S.App.Slug}}.{{.Domain}} and removes its deployments. To keep the repo connected but stop deploys, remove it from the Foyr GitHub App instead.</p><button disabled>Delete {{.S.App.Slug}}</button></section>
 </div>{{template "endframe" .}}{{template "foot"}}{{end}}
