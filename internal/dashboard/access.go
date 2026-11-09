@@ -42,17 +42,30 @@ func (h *Handler) accessPage(w http.ResponseWriter, r *http.Request, s scope, st
 	})
 }
 
+// loadWrite is load for a post: the account must be theirs (404 otherwise) and their role must allow changes (403).
+func (h *Handler) loadWrite(w http.ResponseWriter, r *http.Request) (scope, bool) {
+	s, ok := h.load(w, r, true)
+	if !ok {
+		return s, false
+	}
+	if !personOf(r).canChange(s.Account.ID) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return s, false
+	}
+	return s, true
+}
+
 func (h *Handler) accessURL(s scope) string {
 	return "/dashboard/" + s.Account.Login + "/" + s.App.Slug + "/access"
 }
 
 func (h *Handler) invite(w http.ResponseWriter, r *http.Request) {
-	s, ok := h.load(w, r, true)
+	s, ok := h.loadWrite(w, r)
 	if !ok {
 		return
 	}
 	ctx := r.Context()
-	inv, err := h.Data.CreateInvite(ctx, s.App.ID, r.PostFormValue("email"), r.PostFormValue("role"), actor)
+	inv, err := h.Data.CreateInvite(ctx, s.App.ID, r.PostFormValue("email"), r.PostFormValue("role"), personOf(r).actor())
 	switch {
 	case errors.Is(err, store.ErrBadRole), errors.Is(err, store.ErrBadEmail):
 		h.accessPage(w, r, s, http.StatusBadRequest, capitalize(err.Error())+".")
@@ -90,7 +103,7 @@ func (h *Handler) id(w http.ResponseWriter, r *http.Request, name string) (int64
 }
 
 func (h *Handler) revokeInvite(w http.ResponseWriter, r *http.Request) {
-	s, ok := h.load(w, r, true)
+	s, ok := h.loadWrite(w, r)
 	if !ok {
 		return
 	}
@@ -108,7 +121,7 @@ func (h *Handler) revokeInvite(w http.ResponseWriter, r *http.Request) {
 		h.notFound(w, r)
 		return
 	}
-	if err := h.Data.RevokeInvite(r.Context(), iid, actor); err != nil && !errors.Is(err, store.ErrNotFound) {
+	if err := h.Data.RevokeInvite(r.Context(), iid, personOf(r).actor()); err != nil && !errors.Is(err, store.ErrNotFound) {
 		h.fail(w, r, err)
 		return
 	}
@@ -116,7 +129,7 @@ func (h *Handler) revokeInvite(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) removeMember(w http.ResponseWriter, r *http.Request) {
-	s, ok := h.load(w, r, true)
+	s, ok := h.loadWrite(w, r)
 	if !ok {
 		return
 	}
@@ -124,7 +137,7 @@ func (h *Handler) removeMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := h.Data.RemoveMember(r.Context(), s.App.ID, uid, actor)
+	err := h.Data.RemoveMember(r.Context(), s.App.ID, uid, personOf(r).actor())
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		h.notFound(w, r)
@@ -137,11 +150,11 @@ func (h *Handler) removeMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) setMode(w http.ResponseWriter, r *http.Request) {
-	s, ok := h.load(w, r, true)
+	s, ok := h.loadWrite(w, r)
 	if !ok {
 		return
 	}
-	err := h.Data.SetAccessMode(r.Context(), s.App.ID, r.PostFormValue("mode"), actor)
+	err := h.Data.SetAccessMode(r.Context(), s.App.ID, r.PostFormValue("mode"), personOf(r).actor())
 	switch {
 	case errors.Is(err, store.ErrBadMode):
 		h.accessPage(w, r, s, http.StatusBadRequest, "Access must be private or public.")

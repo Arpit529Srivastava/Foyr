@@ -59,10 +59,10 @@ func (f fake) CreateInvite(_ context.Context, appID int64, email, role string, b
 }
 
 func (f fake) RevokeInvite(_ context.Context, id int64, by store.Actor) error {
-	f.m.actors = append(f.m.actors, by)
 	for app, list := range f.m.invites {
 		for i, inv := range list {
 			if inv.ID == id {
+				f.m.actors = append(f.m.actors, by)
 				f.m.invites[app] = append(list[:i:i], list[i+1:]...)
 				return nil
 			}
@@ -72,10 +72,10 @@ func (f fake) RevokeInvite(_ context.Context, id int64, by store.Actor) error {
 }
 
 func (f fake) RemoveMember(_ context.Context, appID, userID int64, by store.Actor) error {
-	f.m.actors = append(f.m.actors, by)
 	list := f.m.members[appID]
 	for i, m := range list {
 		if m.UserID == userID {
+			f.m.actors = append(f.m.actors, by)
 			f.m.members[appID] = append(list[:i:i], list[i+1:]...)
 			return nil
 		}
@@ -102,7 +102,7 @@ func (o *outbox) Send(_ context.Context, m mail.Message) error {
 func accessHandler(allowed bool) (http.Handler, *mem, *outbox) {
 	m, box := newMem(), &outbox{}
 	mux := http.NewServeMux()
-	(&Handler{Data: fake{m: m}, Allowed: func(*http.Request) bool { return allowed }, SignIn: "/founder", AppsDomain: "apps.test",
+	(&Handler{Data: fake{m: m}, Who: func(*http.Request) (Person, bool) { return Person{Founder: true}, allowed }, SignIn: "/founder", AppsDomain: "apps.test",
 		AppsScheme: "https", Mail: box, Now: func() time.Time { return now }}).Register(mux)
 	return mux, m, box
 }
@@ -250,7 +250,7 @@ func TestAccessPostsNeedSignInAndSameOrigin(t *testing.T) {
 func TestInviteIsSavedEvenIfTheEmailFails(t *testing.T) {
 	_, m, _ := accessHandler(true)
 	mux := http.NewServeMux()
-	(&Handler{Data: fake{m: m}, Allowed: func(*http.Request) bool { return true }, SignIn: "/founder", AppsDomain: "apps.test",
+	(&Handler{Data: fake{m: m}, Who: func(*http.Request) (Person, bool) { return Person{Founder: true}, true }, SignIn: "/founder", AppsDomain: "apps.test",
 		Mail: failing{}, Now: func() time.Time { return now }}).Register(mux)
 	w := post(mux, accessPath+"/invites", url.Values{"email": {"new@acme.test"}, "role": {"member"}}, same)
 	if w.Code != http.StatusBadGateway || !strings.Contains(w.Body.String(), "could not be sent") {

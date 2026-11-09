@@ -32,7 +32,7 @@ func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handl
 		(&login.Handler{Store: st, Mail: sender, AuthURL: cfg.AuthURL, AppsDomain: cfg.AppsDomain, SiteURL: siteURL(cfg)}).Register(mux)
 	}
 	// The customer dashboard borrows the founder sign-in until customer login exists.
-	(&dashboard.Handler{Data: st, Allowed: fh.SignedIn, SignIn: "/founder", AppsDomain: cfg.AppsDomain, AppsScheme: appsScheme(cfg), Mail: sender, SiteURL: siteURL(cfg)}).Register(mux)
+	(&dashboard.Handler{Data: st, Who: founderOnly(fh), SignIn: "/founder", AppsDomain: cfg.AppsDomain, AppsScheme: appsScheme(cfg), Mail: sender, SiteURL: siteURL(cfg)}).Register(mux)
 	mux.Handle("POST /webhooks/github", &github.Handler{
 		Secret:    cfg.GitHubWebhookSecret,
 		OnPush:    onPush(st),
@@ -165,4 +165,9 @@ func recordDelivery(st *store.Store) func(context.Context, github.Delivery) {
 func owner(fullName string) string {
 	o, _, _ := strings.Cut(fullName, "/")
 	return o
+}
+
+// founderOnly signs in the founder only: until customer sign-in ships, nobody else gets a Person.
+func founderOnly(fh *founder.Handler) func(*http.Request) (dashboard.Person, bool) {
+	return func(r *http.Request) (dashboard.Person, bool) { return dashboard.Person{Founder: true}, fh.SignedIn(r) }
 }
