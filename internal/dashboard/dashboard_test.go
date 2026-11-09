@@ -13,7 +13,7 @@ import (
 
 var now = time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
 
-type fake struct{}
+type fake struct{ m *mem }
 
 func at(min int) *time.Time { t := now.Add(time.Duration(min) * time.Minute); return &t }
 
@@ -60,7 +60,7 @@ func (fake) Timeline(context.Context, int64) ([]store.DeploymentEvent, error) { 
 
 func handler(allowed bool) http.Handler {
 	mux := http.NewServeMux()
-	(&Handler{Data: fake{}, Allowed: func(*http.Request) bool { return allowed }, SignIn: "/founder",
+	(&Handler{Data: fake{m: newMem()}, Allowed: func(*http.Request) bool { return allowed }, SignIn: "/founder",
 		AppsDomain: "apps.test", Now: func() time.Time { return now }}).Register(mux)
 	return mux
 }

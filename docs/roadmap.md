@@ -26,7 +26,7 @@ demo and lists what waits until after applying.
 - [ ] Developer login with GitHub (ADR-023)
 - [x] Magic-link login and sessions: code, tests and local run done (ADR-035; Resend and Ed25519 tokens instead of SES and JWT); live in AWS pending
 - [x] authproxy: session check, header stripping, identity headers (signed assertion later)
-- [x] Per-app invites (founder page, ADR-035)
+- [x] Per-app invites (founder page and dashboard Access tab, ADR-035)
 - [ ] `@foyr/auth` SDK: `getUser()`
 - [ ] Basic dashboard: apps list, deploy, CI-style deployment view (steps, timeline, logs, ADR-024), audit log
 - **Done when:** a deployed app has working login with zero auth code written by the user.
