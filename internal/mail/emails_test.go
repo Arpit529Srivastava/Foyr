@@ -148,3 +148,26 @@ func TestWritePreviews(t *testing.T) {
 		}
 	}
 }
+
+func TestDashboardLoginMessage(t *testing.T) {
+	link := "https://app.foyr.online/dashboard/login/verify?t=abc_DEF-123"
+	m := DashboardLoginMessage("ana@example.com", link, testSite)
+	if m.To != "ana@example.com" || m.Subject != "Sign in to Foyr" {
+		t.Fatalf("to %q subject %q", m.To, m.Subject)
+	}
+	if !strings.Contains(m.Text, link) || !strings.Contains(m.Text, "once, for 15 minutes") {
+		t.Errorf("text = %q", m.Text)
+	}
+	// The link appears as the button and again as the fallback text, both escaped the same way.
+	if n := strings.Count(m.HTML, link); n != 2 {
+		t.Errorf("link appears %d times in the HTML, want 2 (button and fallback)", n)
+	}
+	for _, want := range []string{"Open the dashboard", "once, for 15 minutes", testSite + "/email/banner.jpg"} {
+		if !strings.Contains(m.HTML, want) {
+			t.Errorf("HTML is missing %q", want)
+		}
+	}
+	if strings.Contains(DashboardLoginMessage("a@b.test", link, "").HTML, "banner.jpg") {
+		t.Error("an empty site URL still has a banner image")
+	}
+}

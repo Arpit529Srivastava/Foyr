@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Arpit529Srivastava/Foyr/internal/config"
 	"github.com/Arpit529Srivastava/Foyr/internal/db/dbtest"
@@ -314,5 +315,105 @@ func TestFoyrdServesTheFavicon(t *testing.T) {
 		if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != ctype {
 			t.Errorf("%s: %d %q, want 200 %q", path, rec.Code, rec.Header().Get("Content-Type"), ctype)
 		}
+	}
+}
+
+func TestDashboardURLComesFromTheAuthURL(t *testing.T) {
+	for auth, want := range map[string]string{
+		"https://auth.foyr.online":  "https://app.foyr.online",
+		"http://localhost:8080":     "http://localhost:8080",
+		"https://login.example.com": "",
+		"":                          "",
+	} {
+		if got := dashboardURL(&config.Config{AuthURL: auth}); got != want {
+			t.Errorf("dashboardURL(%q) = %q, want %q", auth, got, want)
+		}
+	}
+}
+
+// A linked customer signs in through the real routes and store, and sees only their own account.
+func TestCustomerSignsInToTheDashboard(t *testing.T) {
+	e := setup(t)
+	if rec := e.post("push", "d-1", fixture(t, "push.json")); rec.Code != http.StatusAccepted {
+		t.Fatalf("push = %d", rec.Code)
+	}
+	mine, err := e.st.ListInstallations(ctx)
+	if err != nil || len(mine) != 1 {
+		t.Fatalf("installations = %v, %v", mine, err)
+	}
+	if _, err := e.st.Pool.Exec(ctx, `INSERT INTO installations (id, account_login) VALUES (999, 'other-co')`); err != nil {
+		t.Fatal(err)
+	}
+	_, priv, _ := ed25519.GenerateKey(rand.Reader)
+	cfg := &config.Config{GitHubWebhookSecret: e.secret, SessionKey: priv, AuthURL: "https://auth.foyr.test", AppsDomain: "apps.foyr.test",
+		FounderKey: "0123456789abcdef0123456789abcdef"}
+	h := newServer(cfg, obs.NewLogger(e.logs), e.st)
+
+	send := func(method, host, path, form string, c *http.Cookie) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, "https://"+host+path, strings.NewReader(form))
+		req.Host = host
+		if method == http.MethodPost {
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.Header.Set("Origin", "https://"+host)
+		}
+		if c != nil {
+			req.AddCookie(c)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	const app = "app.foyr.test"
+
+	if rec := send("GET", app, "/dashboard", "", nil); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/dashboard/login" {
+		t.Fatalf("signed out: %d %q", rec.Code, rec.Header().Get("Location"))
+	}
+	if rec := send("GET", "api.foyr.test", "/dashboard", "", nil); rec.Header().Get("Location") != "/founder" {
+		t.Errorf("signed out on the api host: %q, want /founder", rec.Header().Get("Location"))
+	}
+	if rec := send("GET", app, "/", "", nil); rec.Header().Get("Location") != "/dashboard" {
+		t.Errorf("app host root: %q", rec.Header().Get("Location"))
+	}
+
+	// Only a linked email gets a token.
+	if _, ok, _ := e.st.StartDashboardLogin(ctx, "ana@acme.test", time.Now()); ok {
+		t.Fatal("an unlinked email got a token")
+	}
+	if _, err := e.st.LinkAccountMember(ctx, mine[0].ID, "ana@acme.test", "owner", store.Actor{Type: "system", Login: "founder"}); err != nil {
+		t.Fatal(err)
+	}
+	raw, ok, err := e.st.StartDashboardLogin(ctx, "ana@acme.test", time.Now())
+	if err != nil || !ok {
+		t.Fatalf("StartDashboardLogin = %v, %v", ok, err)
+	}
+	if rec := send("GET", app, "/dashboard/login/verify?t="+raw, "", nil); rec.Code != http.StatusOK {
+		t.Fatalf("Continue page = %d", rec.Code)
+	}
+	rec := send("POST", app, "/dashboard/login/verify", "t="+raw, nil)
+	cs := rec.Result().Cookies()
+	if rec.Code != http.StatusSeeOther || len(cs) != 1 || cs[0].Name != "__Host-foyr_dash" {
+		t.Fatalf("verify = %d %v", rec.Code, cs)
+	}
+	c := cs[0]
+
+	if rec := send("GET", app, "/dashboard", "", c); rec.Header().Get("Location") != "/dashboard/"+mine[0].Login {
+		t.Fatalf("start = %d %q", rec.Code, rec.Header().Get("Location"))
+	}
+	page := send("GET", app, "/dashboard/"+mine[0].Login, "", c)
+	if page.Code != http.StatusOK || strings.Contains(page.Body.String(), "other-co") || !strings.Contains(page.Body.String(), "/dashboard/logout") {
+		t.Fatalf("account page = %d\n%s", page.Code, page.Body)
+	}
+	if rec := send("GET", app, "/dashboard/other-co", "", c); rec.Code != http.StatusNotFound {
+		t.Errorf("another account = %d, want 404", rec.Code)
+	}
+	// The customer cookie opens nothing of the founder's.
+	if rec := send("GET", "api.foyr.test", "/founder/accounts", "", c); rec.Header().Get("Location") != "/founder" {
+		t.Errorf("customer cookie on the founder page: %d %q", rec.Code, rec.Header().Get("Location"))
+	}
+	if out := send("POST", app, "/dashboard/logout", "", c); out.Code != http.StatusSeeOther {
+		t.Fatalf("logout = %d", out.Code)
+	}
+	if rec := send("GET", app, "/dashboard/"+mine[0].Login, "", c); rec.Header().Get("Location") != "/dashboard/login" {
+		t.Errorf("after logout: %d %q", rec.Code, rec.Header().Get("Location"))
 	}
 }

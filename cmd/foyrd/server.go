@@ -31,8 +31,12 @@ func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handl
 	if cfg.LoginOn() {
 		(&login.Handler{Store: st, Mail: sender, AuthURL: cfg.AuthURL, AppsDomain: cfg.AppsDomain, SiteURL: siteURL(cfg)}).Register(mux)
 	}
-	// The customer dashboard borrows the founder sign-in until customer login exists.
-	(&dashboard.Handler{Data: st, Who: founderOnly(fh), SignIn: "/founder", AppsDomain: cfg.AppsDomain, AppsScheme: appsScheme(cfg), Mail: sender, SiteURL: siteURL(cfg)}).Register(mux)
+	// The customer dashboard: the founder sign-in, plus customer magic-link sign-in when login is on (ADR-036).
+	dash := &dashboard.Handler{Data: st, Who: founderOnly(fh), SignIn: "/founder", AppsDomain: cfg.AppsDomain, AppsScheme: appsScheme(cfg), Mail: sender, SiteURL: siteURL(cfg)}
+	if cfg.LoginOn() {
+		dash.Auth, dash.DashURL = st, dashboardURL(cfg)
+	}
+	dash.Register(mux)
 	mux.Handle("POST /webhooks/github", &github.Handler{
 		Secret:    cfg.GitHubWebhookSecret,
 		OnPush:    onPush(st),
@@ -71,6 +75,22 @@ func siteURL(cfg *config.Config) string {
 	}
 	if host, ok := strings.CutPrefix(u.Host, "auth."); ok {
 		return "https://" + host
+	}
+	return ""
+}
+
+// dashboardURL is the customer dashboard's address, https://app.foyr.online, taken from the auth URL
+// (https://auth.foyr.online). In development it is the auth URL itself. Empty turns customer sign-in off.
+func dashboardURL(cfg *config.Config) string {
+	u, err := url.Parse(cfg.AuthURL)
+	if err != nil {
+		return ""
+	}
+	if u.Scheme == "http" {
+		return cfg.AuthURL
+	}
+	if host, ok := strings.CutPrefix(u.Host, "auth."); ok && u.Scheme == "https" {
+		return "https://app." + host
 	}
 	return ""
 }
