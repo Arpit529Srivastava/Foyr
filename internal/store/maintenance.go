@@ -82,7 +82,7 @@ func (s *Store) EnsureAuditPartitions(ctx context.Context, now time.Time, months
 type Pruned struct {
 	Deliveries int64
 	Jobs       int64
-	Auth       int64 // login tokens, auth codes and sessions
+	Auth       int64 // login tokens, auth codes and sessions, for apps and the dashboard
 }
 
 // Prune deletes webhook deliveries, finished jobs and expired login rows past retention. Deployments and audit events are kept.
@@ -104,6 +104,8 @@ func (s *Store) Prune(ctx context.Context, now time.Time) (Pruned, error) {
 		`DELETE FROM login_tokens WHERE expires_at < $1`,
 		`DELETE FROM auth_codes WHERE expires_at < $1`,
 		`DELETE FROM sessions WHERE expires_at < $1`,
+		`DELETE FROM dashboard_login_tokens WHERE expires_at < $1`,
+		`DELETE FROM dashboard_sessions WHERE expires_at < $1`,
 	} {
 		tag, err = s.Pool.Exec(ctx, q, cutoff)
 		if err != nil {

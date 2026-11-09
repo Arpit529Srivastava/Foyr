@@ -466,3 +466,18 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** Login in front of every app is the product's wedge and the second part of the YC demo (push, live URL, login, invite).
 
 **Consequences:** Rotating the session key signs everyone out. A new foyrd needs the three SSM parameters before it deploys or its task won't start (the circuit breaker rolls back). Roles are stored and sent but not enforced beyond membership until Phase 2 (`hasPermission`). foyrd must be reachable from authproxy for new logins and removals; existing sessions keep working without it.
+
+## ADR-036: Customer sign-in to the dashboard
+**Date:** 2026-11-09 · **Status:** Accepted · **Builds on:** ADR-034, ADR-035 · **Plan:** docs/superpowers/plans/2026-11-09-dashboard-login.md
+
+**Decision:**
+- The dashboard gets its own magic-link login and its own tables (`dashboard_login_tokens`, `dashboard_sessions`), separate from app login. An app visitor's session can never open the dashboard, and the other way round.
+- A person may open an account's dashboard only through a link row in `account_members` (`installation_id`, `user_id`, role owner, admin or member). Only the founder creates links for now; GitHub sign-in (ADR-023) can create them later. Being invited to an app or being its member gives no dashboard access.
+- The session is an opaque random value in a host-only cookie. Only its SHA-256 is stored, and every request reads the row, so logout and removing the last link end a session at once. 7 days.
+- Login tokens work like app login (15 minutes, single use, Continue button against mail scanners, the form never says who has an account). An email is sent only when it is linked to at least one account.
+- Roles: owner and admin may change things, member is read-only, checked on every post. The audit trail names the person's email.
+- Order of work: tables and store, then scoping every dashboard page to the person's accounts (still founder-only), then the sign-in pages. The boundary lands before anyone can sign in.
+
+**Why:** A developer you onboard must see only their own account. One shared login path for apps and the dashboard would let an app visitor become a dashboard user.
+
+**Consequences:** Migration 006 is additive (three new tables) and foyrd applies it on start. Nothing changes for users until the sign-in pages ship.
