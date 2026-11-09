@@ -481,3 +481,5 @@ gh api -X PUT repos/Arpit529Srivastava/Foyr/branches/main/protection --input pro
 **Why:** A developer you onboard must see only their own account. One shared login path for apps and the dashboard would let an app visitor become a dashboard user.
 
 **Consequences:** Migration 006 is additive (three new tables) and foyrd applies it on start. Nothing changes for users until the sign-in pages ship.
+
+**Update 2026-11-09 (step 2):** the dashboard takes a `Person` (founder, or a customer with a role per account) instead of a yes or no. Accounts the person is not linked to do not exist for that request, so every page and post answers 404 for them. A member's posts answer 403 after that, and the audit trail names the person. Wired to the founder sign-in only, so users see no change yet.

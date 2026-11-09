@@ -1,5 +1,5 @@
 // Package dashboard is the customer dashboard: one GitHub account's apps, deployments, settings and access.
-// Until customer login exists, Allowed is the founder's sign-in and every account is visible to them.
+// Who says who is signed in: the founder sees every account, a customer only the accounts they are linked to.
 package dashboard
 
 import (
@@ -42,14 +42,11 @@ type Data interface {
 	SetAccessMode(ctx context.Context, appID int64, mode string, by store.Actor) error
 }
 
-// actor is who the audit trail names for changes made here, until customer login exists.
-var actor = store.Actor{Type: "system", Login: "founder"}
-
 // Handler serves /dashboard pages.
 type Handler struct {
 	Data       Data
-	Allowed    func(*http.Request) bool // who may see the dashboard
-	SignIn     string                   // where everyone else is sent
+	Who        func(*http.Request) (Person, bool) // who is signed in, if anyone
+	SignIn     string                             // where everyone else is sent
 	AppsDomain string
 	AppsScheme string      // "https" unless developing locally
 	Mail       mail.Sender // sends invites; nil saves them without an email
@@ -116,11 +113,16 @@ func (h *Handler) now() time.Time {
 
 func (h *Handler) guard(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if h.Allowed == nil || !h.Allowed(r) {
+		if h.Who == nil {
 			http.Redirect(w, r, h.SignIn, http.StatusSeeOther)
 			return
 		}
-		next(w, r)
+		p, ok := h.Who(r)
+		if !ok {
+			http.Redirect(w, r, h.SignIn, http.StatusSeeOther)
+			return
+		}
+		next(w, withPerson(r, p))
 	}
 }
 
@@ -153,6 +155,9 @@ func (h *Handler) load(w http.ResponseWriter, r *http.Request, wantApp bool) (sc
 		h.fail(w, r, err)
 		return s, false
 	}
+	// Only the person's own accounts exist as far as this request is concerned.
+	me := personOf(r)
+	accounts = slices.DeleteFunc(slices.Clone(accounts), func(a store.Installation) bool { return !me.sees(a.ID) })
 	s.Accounts = accounts
 	i := slices.IndexFunc(accounts, func(a store.Installation) bool { return strings.EqualFold(a.Login, r.PathValue("account")) })
 	if i < 0 {
@@ -187,6 +192,8 @@ func (h *Handler) start(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
+	me := personOf(r)
+	accounts = slices.DeleteFunc(slices.Clone(accounts), func(a store.Installation) bool { return !me.sees(a.ID) })
 	if len(accounts) == 0 {
 		h.render(w, r, http.StatusOK, "empty.html", map[string]any{})
 		return
@@ -401,6 +408,7 @@ func (h *Handler) pageStatus(w http.ResponseWriter, r *http.Request, status int,
 }
 
 func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, name string, data map[string]any) {
+	data["Founder"] = personOf(r).Founder
 	data["Nonce"] = ui.SecureHeaders(w)
 	w.WriteHeader(status)
 	if err := pages.ExecuteTemplate(w, name, data); err != nil {

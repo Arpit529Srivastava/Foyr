@@ -60,7 +60,7 @@ func (fake) Timeline(context.Context, int64) ([]store.DeploymentEvent, error) { 
 
 func handler(allowed bool) http.Handler {
 	mux := http.NewServeMux()
-	(&Handler{Data: fake{m: newMem()}, Allowed: func(*http.Request) bool { return allowed }, SignIn: "/founder",
+	(&Handler{Data: fake{m: newMem()}, Who: func(*http.Request) (Person, bool) { return Person{Founder: true}, allowed }, SignIn: "/founder",
 		AppsDomain: "apps.test", Now: func() time.Time { return now }}).Register(mux)
 	return mux
 }
@@ -175,7 +175,7 @@ func (noAccounts) ListInstallations(context.Context) ([]store.Installation, erro
 // Every page head names the icon, so tabs show the Foyr mark and not a grey globe.
 func TestEveryPageLinksTheFavicon(t *testing.T) {
 	empty := http.NewServeMux()
-	(&Handler{Data: noAccounts{}, Allowed: func(*http.Request) bool { return true }, SignIn: "/founder", AppsDomain: "apps.test",
+	(&Handler{Data: noAccounts{}, Who: func(*http.Request) (Person, bool) { return Person{Founder: true}, true }, SignIn: "/founder", AppsDomain: "apps.test",
 		Now: func() time.Time { return now }}).Register(empty)
 	for name, w := range map[string]*httptest.ResponseRecorder{
 		"account page":   get(handler(true), "/dashboard/acme"),
