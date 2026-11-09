@@ -12,5 +12,6 @@ export FOYR_ROUTES_URL="${FOYR_ROUTES_URL:-http://localhost${FOYR_INTERNAL_ADDR:
 # Magic-link login, against local foyrd (scripts/foyrd-dev.sh makes the keys).
 ROOT="$PWD"; source scripts/login-dev-env.sh
 export FOYR_SESSION_PUBLIC_KEY="$(cat "$DEV_PUB")"
+FOYR_ASSERTION_KEY="$(cat "$DEV_ASSERT_KEY")"; export FOYR_ASSERTION_KEY
 export FOYR_FOYRD_URL="${FOYR_FOYRD_URL:-http://localhost${FOYR_INTERNAL_ADDR:-:9090}}"
 exec go run ./cmd/authproxy

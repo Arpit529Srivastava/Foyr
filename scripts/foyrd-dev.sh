@@ -13,6 +13,7 @@ ADDR="${FOYR_ADDR:-:8080}"
 ROOT="$PWD"; FOYRD_PORT="${ADDR##*:}"; source scripts/login-dev-env.sh
 # Magic-link login: the key signs sessions, emails go to this log, apps open at <slug>.apps.localhost:8081.
 export FOYR_SESSION_KEY="$(cat "$DEV_KEY")"
+FOYR_ASSERTION_PUBLIC_KEYS="$(cat "$DEV_ASSERT_PUB")"; export FOYR_ASSERTION_PUBLIC_KEYS
 PROXY_ADDR="${AUTHPROXY_ADDR:-:8081}"
 export FOYR_APPS_DOMAIN="${FOYR_APPS_DOMAIN:-apps.localhost:${PROXY_ADDR##*:}}"
 npx --yes smee-client --url "$SMEE_URL" --target "http://localhost:${ADDR##*:}/webhooks/github" &
