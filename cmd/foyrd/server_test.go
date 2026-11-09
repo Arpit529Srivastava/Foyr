@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Arpit529Srivastava/Foyr/internal/authn"
 	"github.com/Arpit529Srivastava/Foyr/internal/config"
 	"github.com/Arpit529Srivastava/Foyr/internal/db/dbtest"
 	"github.com/Arpit529Srivastava/Foyr/internal/github"
@@ -274,6 +277,96 @@ func TestLoginRoutesExistOnlyWhenLoginIsOn(t *testing.T) {
 	}
 	if rec := get(on, "api.foyr.test", "/login"); rec.Code != http.StatusNotFound {
 		t.Errorf("login on the api host = %d, want 404 (only the auth host serves it)", rec.Code)
+	}
+}
+
+func assertionKeys(t *testing.T, n int) []*ecdsa.PublicKey {
+	t.Helper()
+	var csv []string
+	for i := 0; i < n; i++ {
+		_, pub := authn.NewAssertionKeyPair()
+		csv = append(csv, pub)
+	}
+	keys, err := authn.ParseAssertionPublicKeys(strings.Join(csv, ","))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return keys
+}
+
+func keySetServer(t *testing.T, e *env, keys []*ecdsa.PublicKey, loginOn bool) http.Handler {
+	t.Helper()
+	cfg := &config.Config{GitHubWebhookSecret: e.secret, AuthURL: "https://auth.test", AppsDomain: "apps.test", AssertionPublicKeys: keys}
+	if loginOn {
+		_, priv, _ := ed25519.GenerateKey(rand.Reader)
+		cfg.SessionKey = priv
+	}
+	return newServer(cfg, obs.NewLogger(e.logs), e.st)
+}
+
+func keySetReq(h http.Handler, method, host string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, "https://"+host+"/.well-known/jwks.json", nil)
+	req.Host = host
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestKeySetServedOnTheAuthHostOnly(t *testing.T) {
+	e := setup(t)
+	keys := assertionKeys(t, 1)
+	on := keySetServer(t, &e, keys, true)
+
+	rec := keySetReq(on, http.MethodGet, "auth.test")
+	if rec.Code != http.StatusOK || rec.Body.String() != string(authn.JWKS(keys)) {
+		t.Fatalf("auth host = %d %s", rec.Code, rec.Body)
+	}
+	for k, v := range map[string]string{
+		"Content-Type":                "application/json",
+		"Cache-Control":               "public, max-age=300",
+		"Access-Control-Allow-Origin": "*",
+	} {
+		if got := rec.Header().Get(k); got != v {
+			t.Errorf("%s = %q, want %q", k, got, v)
+		}
+	}
+	if rec := keySetReq(on, http.MethodGet, "AUTH.test"); rec.Code != http.StatusOK {
+		t.Errorf("upper-case host = %d, want 200", rec.Code)
+	}
+	for _, host := range []string{"app.test", "api.test"} {
+		if rec := keySetReq(on, http.MethodGet, host); rec.Code != http.StatusNotFound {
+			t.Errorf("%s = %d, want 404", host, rec.Code)
+		}
+	}
+	if rec := keySetReq(on, http.MethodPost, "auth.test"); rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("POST = %d, want 405", rec.Code)
+	}
+
+	off := keySetServer(t, &e, keys, false)
+	for _, host := range []string{"auth.test", "app.test", "api.test"} {
+		if rec := keySetReq(off, http.MethodGet, host); rec.Code != http.StatusNotFound {
+			t.Errorf("login off, %s = %d, want 404", host, rec.Code)
+		}
+	}
+}
+
+func TestKeySetListsEveryConfiguredKey(t *testing.T) {
+	e := setup(t)
+	keys := assertionKeys(t, 2)
+	if authn.KeyID(keys[0]) < authn.KeyID(keys[1]) {
+		keys[0], keys[1] = keys[1], keys[0]
+	}
+	rec := keySetReq(keySetServer(t, &e, keys, true), http.MethodGet, "auth.test")
+	var set struct {
+		Keys []struct {
+			Kid string `json:"kid"`
+		} `json:"keys"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &set); err != nil || len(set.Keys) != 2 {
+		t.Fatalf("body = %s err=%v", rec.Body, err)
+	}
+	if set.Keys[0].Kid >= set.Keys[1].Kid {
+		t.Errorf("kids not sorted: %v", set.Keys)
 	}
 }
 

@@ -2,6 +2,7 @@
 package config
 
 import (
+	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/x509"
@@ -13,6 +14,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/Arpit529Srivastava/Foyr/internal/authn"
 )
 
 // minSecretLen is the shortest webhook secret accepted; short secrets are guessable.
@@ -26,8 +29,9 @@ type Config struct {
 	GitHubWebhookSecret []byte
 	GitHubAPIURL        string
 	DatabaseURL         string
-	InternalAddr        string // private listener for authproxy; never behind the public load balancer
-	InternalToken       string // shared with authproxy
+	InternalAddr        string             // private listener for authproxy; never behind the public load balancer
+	InternalToken       string             // shared with authproxy
+	AssertionPublicKeys []*ecdsa.PublicKey // published at /.well-known/jwks.json while login is on
 	AWSRegion           string
 	CodeBuildProject    string
 	Workers             int    // build workers in this process; 0 turns building off
@@ -171,6 +175,19 @@ func loadLogin(c *Config, getenv func(string) string) []error {
 		errs = append(errs, errors.New("FOYR_SESSION_KEY must be a 32-byte Ed25519 seed in base64"))
 	} else {
 		c.SessionKey = ed25519.NewKeyFromSeed(seed)
+	}
+
+	switch raw := strings.TrimSpace(getenv("FOYR_ASSERTION_PUBLIC_KEYS")); {
+	case raw == "":
+		errs = append(errs, missing("FOYR_ASSERTION_PUBLIC_KEYS"))
+	default:
+		keys, err := authn.ParseAssertionPublicKeys(raw)
+		if err != nil {
+			// The value is never echoed.
+			errs = append(errs, errors.New("FOYR_ASSERTION_PUBLIC_KEYS must be comma-separated base64 P-256 public keys (SPKI)"))
+		} else {
+			c.AssertionPublicKeys = keys
+		}
 	}
 
 	local := false
