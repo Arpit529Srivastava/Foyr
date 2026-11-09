@@ -20,11 +20,15 @@ if [ ! -s "$SESSION_KEY_FILE" ] || [ ! -s "$SESSION_PUB_FILE" ]; then
 fi
 # The assertion pair (authproxy signs, foyrd verifies) is made once, like the session key.
 ASSERT_KEY_FILE="$HOME/.config/foyr/assertion.key"; ASSERT_PUB_FILE="$HOME/.config/foyr/assertion.pub"
-if [ ! -s "$ASSERT_KEY_FILE" ] || [ ! -s "$ASSERT_PUB_FILE" ]; then
+if [ ! -s "$ASSERT_KEY_FILE" ] && [ ! -s "$ASSERT_PUB_FILE" ]; then
   pair="$(cd "$(dirname "$0")/.." && go run ./cmd/assertionkey)"
   printf '%s' "$pair" | sed -n 's/^key=//p' | tr -d '\n' > "$ASSERT_KEY_FILE"
   printf '%s' "$pair" | sed -n 's/^public=//p' | tr -d '\n' > "$ASSERT_PUB_FILE"
   unset pair; echo "made $ASSERT_KEY_FILE and $ASSERT_PUB_FILE"
+elif [ ! -s "$ASSERT_KEY_FILE" ]; then
+  echo "missing $ASSERT_KEY_FILE (its pair $ASSERT_PUB_FILE exists; not regenerating)" >&2; exit 1
+elif [ ! -s "$ASSERT_PUB_FILE" ]; then
+  echo "missing $ASSERT_PUB_FILE (its pair $ASSERT_KEY_FILE exists; not regenerating)" >&2; exit 1
 fi
 # Resend's API key: create one at resend.com/api-keys (sending access) and save it in this file.
 RESEND_KEY_FILE="$HOME/.config/foyr/resend-api-key"
@@ -40,12 +44,16 @@ put founder-key "$FOUNDER_KEY_FILE"
 put session-key "$SESSION_KEY_FILE"
 put session-public-key "$SESSION_PUB_FILE"
 put resend-api-key "$RESEND_KEY_FILE"
-# Write only when absent: rotation state in SSM must never be overwritten by a re-run.
+# No --overwrite: a re-run must never replace rotated keys, and only ParameterAlreadyExists is benign.
 put_once() {
-  if aws ssm get-parameter --name "/foyr/platform/$1" --query Parameter.Version --output text >/dev/null 2>&1; then
-    echo "/foyr/platform/$1 exists, left alone"
+  local out rc
+  out="$(aws ssm put-parameter --name "/foyr/platform/$1" --type SecureString --value "file://$2" --query Version --output text 2>&1)" && rc=0 || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    echo "/foyr/platform/$1 version $out"
+  elif [[ "$out" == *ParameterAlreadyExists* ]]; then
+    echo "/foyr/platform/$1 already exists, left alone"
   else
-    put "$1" "$2"
+    echo "$out" >&2; exit "$rc"
   fi
 }
 put_once assertion-key "$ASSERT_KEY_FILE"
