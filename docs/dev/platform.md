@@ -79,6 +79,12 @@ rm ~/.config/foyr/assertion-new.out
 
 "Deploy" means merge to `main` or run **Deploy platform**; if nothing in the image changed, force a new deployment of that ECS service so its tasks start and read SSM again. Skipping the wait in step 2 costs one extra key set request in an SDK, not an outage.
 
+### Rolling out this release (ADR-038)
+
+Order: (a) create the keys with `scripts/platform-secrets.sh`, (b) `tofu apply`, (c) deploy foyrd, (d) deploy authproxy. Do (a) and (b) before merging to `main`: the Deploy platform workflow runs on pushes to `main` that change `cmd/**` or `internal/**`, and would otherwise deploy a new foyrd on a task definition revision without `FOYR_ASSERTION_PUBLIC_KEYS`. That task fails to start and the ECS circuit breaker rolls it back (safe, but a red deploy). The same rollback happens whenever one of the two SSM parameters is missing.
+
+Rollback: roll authproxy back first, then foyrd. Never roll foyrd back past this release while the new authproxy runs: the new authproxy refuses sessions without a public id and answers a "Sign-in unavailable" page (502), so a foyrd rollback alone makes sign-in unavailable.
+
 ## Terms
 
 **RDS**: AWS runs Postgres for us: backups, patches, disk.
