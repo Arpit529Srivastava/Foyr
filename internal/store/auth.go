@@ -277,6 +277,7 @@ type Session struct {
 	ID             string
 	UserID         int64
 	Email, Slug    string
+	PublicID       string
 	AppID          int64
 	InstallationID int64
 	ExpiresAt      time.Time
@@ -289,8 +290,8 @@ func (s *Store) ExchangeCode(ctx context.Context, raw, slug string, now time.Tim
 		if err := tx.QueryRow(ctx, `UPDATE auth_codes c SET used_at = $3 FROM apps a, users u
 			WHERE c.code_hash = $1 AND c.used_at IS NULL AND c.expires_at > $3
 			AND a.id = c.app_id AND a.slug = $2 AND u.id = c.user_id
-			RETURNING c.user_id, u.email, a.slug, c.app_id, c.installation_id`,
-			authn.Hash(raw), slug, now).Scan(&sess.UserID, &sess.Email, &sess.Slug, &sess.AppID, &sess.InstallationID); err != nil {
+			RETURNING c.user_id, u.email, a.slug, c.app_id, c.installation_id, u.public_id`,
+			authn.Hash(raw), slug, now).Scan(&sess.UserID, &sess.Email, &sess.Slug, &sess.AppID, &sess.InstallationID, &sess.PublicID); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrInvalidToken
 			}

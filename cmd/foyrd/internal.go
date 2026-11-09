@@ -93,7 +93,7 @@ func exchange(st *store.Store, key ed25519.PrivateKey) http.HandlerFunc {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		token := authn.Sign(key, authn.Claims{SID: sess.ID, UserID: sess.UserID, Email: sess.Email, Slug: sess.Slug, Iat: time.Now().Unix(), Exp: sess.ExpiresAt.Unix()})
+		token := authn.Sign(key, authn.Claims{SID: sess.ID, UserID: sess.UserID, PublicID: sess.PublicID, Email: sess.Email, Slug: sess.Slug, Iat: time.Now().Unix(), Exp: sess.ExpiresAt.Unix()})
 		writeJSON(w, http.StatusOK, map[string]any{"token": token, "expires_at": sess.ExpiresAt.UTC().Format(time.RFC3339)})
 	}
 }

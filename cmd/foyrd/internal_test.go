@@ -162,6 +162,13 @@ func TestInternalExchangeIssuesAVerifiableToken(t *testing.T) {
 	if err != nil || claims.Slug != slug || claims.Email != "ana@example.com" || claims.SID == "" || claims.UserID == 0 {
 		t.Fatalf("claims = %+v, %v", claims, err)
 	}
+	var wantPID string
+	if err := e.st.Pool.QueryRow(ctx, `SELECT public_id FROM users WHERE id = $1`, claims.UserID).Scan(&wantPID); err != nil {
+		t.Fatal(err)
+	}
+	if claims.PublicID == "" || claims.PublicID != wantPID {
+		t.Errorf("PublicID = %q, users row has %q", claims.PublicID, wantPID)
+	}
 	if d := time.Since(time.Unix(claims.Iat, 0)); d < 0 || d > 5*time.Second {
 		t.Errorf("Iat = %d is not the time of the exchange", claims.Iat)
 	}
@@ -170,6 +177,31 @@ func TestInternalExchangeIssuesAVerifiableToken(t *testing.T) {
 	}
 	if rec := internalCall(h, "POST", "/internal/auth/exchange", auth, `{"code":"`+code+`","slug":"`+slug+`"}`); rec.Code != http.StatusBadRequest {
 		t.Errorf("second exchange of the same code: %d, want 400", rec.Code)
+	}
+
+	// A second user gets a different public id.
+	apps, _ := e.st.ListApps(ctx)
+	if _, err := e.st.CreateInvite(ctx, apps[0].ID, "bo@example.com", "member", store.System); err != nil {
+		t.Fatal(err)
+	}
+	raw2, _, err := e.st.StartLogin(ctx, slug, "bo@example.com", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	code2, _, err := e.st.FinishLogin(ctx, raw2, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec2 := internalCall(h, "POST", "/internal/auth/exchange", auth, `{"code":"`+code2+`","slug":"`+slug+`"}`)
+	var out2 struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(rec2.Body).Decode(&out2); err != nil {
+		t.Fatal(err)
+	}
+	claims2, err := authn.Verify(pub, out2.Token, time.Now())
+	if err != nil || claims2.PublicID == "" || claims2.PublicID == claims.PublicID {
+		t.Errorf("second user claims = %+v, %v; want a different pid", claims2, err)
 	}
 
 	// Logout revokes the session, and authproxy sees it in the next snapshot.
