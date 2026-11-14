@@ -130,7 +130,8 @@ stripping visitor-sent `X-Foyr-*` headers. Guide: docs/dev/routing.md.
 6. each subsequent request:
    authproxy verifies session JWT locally (public key) + looks up role in config cache
    ─► strips any inbound X-Foyr-* headers (anti-spoofing)
-   ─► adds X-Foyr-User-Id, X-Foyr-Email, X-Foyr-Role, X-Foyr-Assertion (short-lived signed JWT)
+   ─► adds X-Foyr-User-Id (usr_...), X-Foyr-Email, X-Foyr-Role, X-Foyr-Assertion
+      (ES256 JWT, 60 s, signed with authproxy's own key)
    ─► forwards to the live deployment
 ```
 
@@ -164,11 +165,16 @@ Without any SDK, an app can read the `X-Foyr-*` headers directly. With `@foyr/au
 ```ts
 import { getUser, hasPermission } from "@foyr/auth";
 
-const user = getUser(req);          // verifies X-Foyr-Assertion → { id, email, role } | null
+const user = getUser(req);          // reads the headers → { id: "usr_...", email, role } | null
 if (!hasPermission(user, "reports:export")) return res.status(403).end();
 ```
 
 The SDK is a thin verifier (<100 lines per language). **Nothing is injected into the user's build.**
+
+The assertion is an ES256 JWT (ADR-038). An app that wants proof, not just headers, verifies it
+against the key set at `auth.<PLATFORM_DOMAIN>/.well-known/jwks.json`, checking the issuer and that
+the audience is its own slug. Apps get `FOYR_APP_SLUG` and `FOYR_AUTH_URL` for this. User ids are
+opaque, like `usr_0123456789abcdef`. Shared test vectors live in `sdk/vectors`.
 
 ### 4f. Custom domains (Phase 3)
 
@@ -250,8 +256,9 @@ audit_log      id, actor_id, app_id, action, data jsonb, at
 - Tenant tasks run with **no IAM task role** (no AWS credentials), CPU/memory limits, and a
   read-only root filesystem where possible.
 - CodeBuild's role is scoped to pushing to that app's ECR repository; clone tokens expire in 1 h.
-- authproxy strips spoofed `X-Foyr-*` headers; apps can verify `X-Foyr-Assertion` against
-  Foyr's published public keys (JWKS).
+- authproxy strips spoofed `X-Foyr-*` headers; apps can verify `X-Foyr-Assertion` (ES256, 60 s)
+  against the key set published at `auth.<PLATFORM_DOMAIN>/.well-known/jwks.json`. authproxy signs
+  with its own key; foyrd holds only the public keys, so neither can forge the other's tokens (ADR-038).
 - Customer apps are served from `APPS_DOMAIN`, a different registrable domain from the dashboard and
   auth (`PLATFORM_DOMAIN`), so a malicious app cannot set cookies on `.foyr.online` or ride on
   same-site requests to the dashboard. Submit `foyrapps.online` to the Public Suffix List before

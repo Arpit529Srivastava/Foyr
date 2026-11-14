@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"errors"
+	"regexp"
 	"sync"
 	"testing"
 	"time"
@@ -452,5 +453,21 @@ func TestPruneRemovesOldAuthRows(t *testing.T) {
 	}
 	if n := count(t, s, `SELECT count(*) FROM auth_codes`); n != 1 {
 		t.Errorf("%d auth codes left, want only the fresh one", n)
+	}
+}
+
+func TestExchangeCodeReturnsThePublicID(t *testing.T) {
+	s := newStore(t)
+	app := seedApp(t, s, 1, 10)
+	sess := invitedLogin(t, s, app, "ana@example.com", time.Now())
+	if !regexp.MustCompile(`^usr_[0-9a-f]{16}$`).MatchString(sess.PublicID) {
+		t.Fatalf("PublicID = %q, want usr_ plus 16 hex", sess.PublicID)
+	}
+	var want string
+	if err := s.Pool.QueryRow(ctx, `SELECT public_id FROM users WHERE id = $1`, sess.UserID).Scan(&want); err != nil {
+		t.Fatal(err)
+	}
+	if sess.PublicID != want {
+		t.Errorf("PublicID = %q, users row has %q", sess.PublicID, want)
 	}
 }

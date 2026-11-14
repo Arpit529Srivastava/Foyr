@@ -47,7 +47,7 @@ func run() error {
 	if cfg.AuthOn() {
 		client := &http.Client{Timeout: 5 * time.Second}
 		handler.Access = &proxy.Access{}
-		handler.Auth = &proxy.Auth{PublicKey: cfg.SessionPublicKey, AuthURL: cfg.AuthURL,
+		handler.Auth = &proxy.Auth{PublicKey: cfg.SessionPublicKey, AuthURL: cfg.AuthURL, AssertionKey: cfg.AssertionKey,
 			Exchanger: &proxy.HTTPExchanger{BaseURL: cfg.FoyrdURL, Token: cfg.Token, HTTP: client}}
 		go (&proxy.AccessPoller{URL: cfg.FoyrdURL + "/internal/access", Token: cfg.Token, HTTP: client,
 			Access: handler.Access, Log: log}).Run(ctx)

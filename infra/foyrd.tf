@@ -8,8 +8,9 @@ locals {
     FOYR_GITHUB_PRIVATE_KEY    = "github-private-key"
     FOYR_INTERNAL_TOKEN        = "internal-token"
     FOYR_FOUNDER_KEY           = "founder-key"
-    FOYR_SESSION_KEY           = "session-key"    # Ed25519 seed that signs sessions (ADR-035)
-    FOYR_RESEND_API_KEY        = "resend-api-key" # login and invite emails
+    FOYR_SESSION_KEY           = "session-key"           # Ed25519 seed that signs sessions (ADR-035)
+    FOYR_RESEND_API_KEY        = "resend-api-key"        # login and invite emails
+    FOYR_ASSERTION_PUBLIC_KEYS = "assertion-public-keys" # verifies authproxy assertions
   }
 }
 

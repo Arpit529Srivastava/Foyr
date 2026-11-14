@@ -29,12 +29,13 @@ const (
 
 // Claims is what a session token says. Iat and Exp are Unix seconds.
 type Claims struct {
-	SID    string `json:"sid"`
-	UserID int64  `json:"uid"`
-	Email  string `json:"email"`
-	Slug   string `json:"app"`
-	Iat    int64  `json:"iat,omitempty"` // when the session started, Unix seconds
-	Exp    int64  `json:"exp"`
+	SID      string `json:"sid"`
+	UserID   int64  `json:"uid"`
+	PublicID string `json:"pid,omitempty"` // the user's opaque public id
+	Email    string `json:"email"`
+	Slug     string `json:"app"`
+	Iat      int64  `json:"iat,omitempty"` // when the session started, Unix seconds
+	Exp      int64  `json:"exp"`
 }
 
 // Sign returns "v1.<payload>.<signature>" with the signature over a fixed context plus the payload.

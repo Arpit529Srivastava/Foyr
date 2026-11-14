@@ -9,6 +9,15 @@ if [ ! -f "$DEV_KEY" ] || [ ! -f "$DEV_PUB" ]; then
   printf '%s\n' "$_pair" | sed -n 's/^public=//p' > "$DEV_PUB"
   unset _pair
 fi
+DEV_ASSERT_KEY="$HOME/.config/foyr/dev-assertion.key"
+DEV_ASSERT_PUB="$HOME/.config/foyr/dev-assertion.pub"
+if [ ! -f "$DEV_ASSERT_KEY" ] || [ ! -f "$DEV_ASSERT_PUB" ]; then
+  mkdir -p "$HOME/.config/foyr"
+  _pair="$(cd "$ROOT" && go run ./cmd/assertionkey)"
+  (umask 077; printf '%s\n' "$_pair" | sed -n 's/^key=//p' > "$DEV_ASSERT_KEY")
+  printf '%s\n' "$_pair" | sed -n 's/^public=//p' > "$DEV_ASSERT_PUB"
+  unset _pair
+fi
 # foyrd signs with the key, authproxy only verifies with the public half.
 # Sign-in pages are served by foyrd, so the auth URL always uses foyrd's port (FOYRD_PORT, default 8080).
 export FOYR_AUTH_URL="${FOYR_AUTH_URL:-http://localhost:${FOYRD_PORT:-8080}}"

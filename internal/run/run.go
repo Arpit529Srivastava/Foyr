@@ -63,6 +63,16 @@ type Runner struct {
 	Region       string
 	Poll         time.Duration // default 5s
 	StartTimeout time.Duration // default 6m
+	AuthURL      string        // platform auth URL; empty when login is off
+}
+
+// appEnv is the environment every app gets; FOYR_ is reserved for the platform.
+func appEnv(slug, authURL string) map[string]string {
+	env := map[string]string{"PORT": strconv.Itoa(AppPort), "NODE_ENV": "production", "FOYR_APP_SLUG": slug}
+	if authURL != "" {
+		env["FOYR_AUTH_URL"] = authURL
+	}
+	return env
 }
 
 // ServiceName is the ECS service, and Cloud Map name, of a deployment.
@@ -93,11 +103,18 @@ func (r *Runner) Run(ctx context.Context, job store.Job) error {
 	}
 
 	if d.ECSService == "" {
+		app, err := r.Store.GetApp(ctx, d.AppID)
+		if err != nil {
+			return fmt.Errorf("load app: %w", err)
+		}
+		if app.Slug == "" {
+			return r.fail(ctx, d, "Start", "This app has no address yet.", "")
+		}
 		td, err := r.Platform.RegisterTask(ctx, TaskSpec{
 			Family:    "app-" + strconv.FormatInt(d.AppID, 10),
 			Image:     d.ImageURI,
 			LogPrefix: "app-" + strconv.FormatInt(d.AppID, 10),
-			Env:       map[string]string{"PORT": strconv.Itoa(AppPort), "NODE_ENV": "production"},
+			Env:       appEnv(app.Slug, r.AuthURL),
 		})
 		if err != nil {
 			return fmt.Errorf("register task definition: %w", err)

@@ -46,6 +46,45 @@ Local walkthrough: docs/dev/login.md. To switch it on in AWS:
 6. `tofu output platform_hosts_cnames`: add the `auth` and `app` CNAME records at GoDaddy.
 7. Merge to `main` (or run **Deploy platform**). Then on the founder page open an app, make it private, invite yourself, and open its URL in a private window.
 
+## Identity keys (ADR-038)
+authproxy signs an identity assertion for every request; foyrd publishes the matching public keys at `auth.<PLATFORM_DOMAIN>/.well-known/jwks.json`.
+
+**Creating the pair (once).** `scripts/platform-secrets.sh` makes `~/.config/foyr/assertion.key` (private, for authproxy) and `~/.config/foyr/assertion.pub` the first time, then writes SSM `/foyr/platform/assertion-key` and `/foyr/platform/assertion-public-keys`. It writes these two only if they do not exist, and a failed run never overwrites them, so re-running it cannot undo a rotation. If one local file is missing while its partner exists, it stops instead of making a new pair. Both parameters must exist before authproxy and foyrd deploy, or their tasks do not start.
+
+**How the services read them.** ECS injects the values when a task starts: authproxy gets `FOYR_ASSERTION_KEY`, foyrd gets `FOYR_ASSERTION_PUBLIC_KEYS` (a comma-separated list). Changing SSM does nothing until the service is deployed again.
+
+**Rotating (four steps, each safe on its own).** Run in the repo root with `AWS_PROFILE=foyr AWS_REGION=ap-south-1`. First make the new pair without printing it:
+```
+umask 077
+go run ./cmd/assertionkey > ~/.config/foyr/assertion-new.out
+sed -n 's/^key=//p' ~/.config/foyr/assertion-new.out | tr -d '\n' > ~/.config/foyr/assertion-new.key
+sed -n 's/^public=//p' ~/.config/foyr/assertion-new.out | tr -d '\n' > ~/.config/foyr/assertion-new.pub
+rm ~/.config/foyr/assertion-new.out
+```
+1. Add the new public key to the list, then deploy foyrd. The key set now has old and new.
+   ```
+   printf '%s,%s' "$(cat ~/.config/foyr/assertion.pub)" "$(cat ~/.config/foyr/assertion-new.pub)" > ~/.config/foyr/assertion-public-keys.next
+   aws ssm put-parameter --name /foyr/platform/assertion-public-keys --type SecureString --overwrite --value "file://$HOME/.config/foyr/assertion-public-keys.next"
+   ```
+2. Wait at least an hour, so every SDK cache has seen the new set.
+3. Replace the private key, then deploy authproxy.
+   ```
+   aws ssm put-parameter --name /foyr/platform/assertion-key --type SecureString --overwrite --value "file://$HOME/.config/foyr/assertion-new.key"
+   ```
+4. After at least two minutes (one assertion lifetime plus leeway), remove the old public key, then deploy foyrd.
+   ```
+   aws ssm put-parameter --name /foyr/platform/assertion-public-keys --type SecureString --overwrite --value "file://$HOME/.config/foyr/assertion-new.pub"
+   ```
+   Then keep the local copies in step: `mv ~/.config/foyr/assertion-new.key ~/.config/foyr/assertion.key`, the same for `.pub`, and `rm ~/.config/foyr/assertion-public-keys.next`.
+
+"Deploy" means merge to `main` or run **Deploy platform**; if nothing in the image changed, force a new deployment of that ECS service so its tasks start and read SSM again. Skipping the wait in step 2 costs one extra key set request in an SDK, not an outage.
+
+### Rolling out this release (ADR-038)
+
+Order: (a) create the keys with `scripts/platform-secrets.sh`, (b) `tofu apply`, (c) deploy foyrd, (d) deploy authproxy. Do (a) and (b) before merging to `main`: the Deploy platform workflow runs on pushes to `main` that change `cmd/**` or `internal/**`, and would otherwise deploy a new foyrd on a task definition revision without `FOYR_ASSERTION_PUBLIC_KEYS`. That task fails to start and the ECS circuit breaker rolls it back (safe, but a red deploy). The same rollback happens whenever one of the two SSM parameters is missing.
+
+Rollback: roll authproxy back first, then foyrd. Never roll foyrd back past this release while the new authproxy runs: the new authproxy refuses sessions without a public id and answers a "Sign-in unavailable" page (502), so a foyrd rollback alone makes sign-in unavailable.
+
 ## Terms
 
 **RDS**: AWS runs Postgres for us: backups, patches, disk.

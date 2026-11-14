@@ -316,7 +316,7 @@ run "control_plane" {
   assert {
     condition = alltrue([
       for e in jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].environment : !strcontains(e.name, "SECRET") && !strcontains(e.name, "TOKEN") && !strcontains(e.name, "PRIVATE_KEY") && !strcontains(e.name, "FOUNDER_KEY") && e.name != "FOYR_DATABASE_URL"
-    ]) && length(jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].secrets) == 7
+    ]) && length(jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].secrets) == 8
     error_message = "foyrd's secrets come from SSM, never plain environment values"
   }
 
@@ -405,5 +405,30 @@ run "login_secrets" {
   assert {
     condition     = length([for e in jsondecode(aws_ecs_task_definition.authproxy.container_definitions)[0].environment : e if e.name == "FOYR_AUTH_URL" && e.value == "https://auth.foyr.online"]) == 1 && length([for e in jsondecode(aws_ecs_task_definition.authproxy.container_definitions)[0].environment : e if e.name == "FOYR_FOYRD_URL" && e.value == "http://foyrd.platform.foyr.internal:9090"]) == 1
     error_message = "authproxy knows where to send visitors and where foyrd's private listener is"
+  }
+}
+
+run "assertion_secrets" {
+  command = plan
+
+  assert {
+    condition = length([for x in jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].secrets : x if x.name == "FOYR_ASSERTION_PUBLIC_KEYS" && endswith(x.valueFrom, "parameter/foyr/platform/assertion-public-keys")]) == 1 && alltrue([
+      for x in jsondecode(aws_ecs_task_definition.foyrd.container_definitions)[0].secrets : !endswith(x.valueFrom, "/assertion-key")
+    ])
+    error_message = "foyrd gets only the assertion public keys, never the signing key"
+  }
+
+  assert {
+    condition     = length([for x in jsondecode(aws_ecs_task_definition.authproxy.container_definitions)[0].secrets : x if x.name == "FOYR_ASSERTION_KEY" && endswith(x.valueFrom, "parameter/foyr/platform/assertion-key")]) == 1
+    error_message = "authproxy reads its assertion signing key from SSM"
+  }
+
+  assert {
+    condition = alltrue(flatten([
+      for td in [aws_ecs_task_definition.foyrd, aws_ecs_task_definition.authproxy] : [
+        for e in jsondecode(td.container_definitions)[0].environment : !startswith(e.name, "FOYR_ASSERTION")
+      ]
+    ]))
+    error_message = "no assertion key is a plain environment entry"
   }
 }

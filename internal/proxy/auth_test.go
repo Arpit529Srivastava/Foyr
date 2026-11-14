@@ -2,8 +2,10 @@ package proxy
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -54,7 +56,11 @@ type authRig struct {
 	exch   *fakeExchanger
 	priv   ed25519.PrivateKey
 	hits   int
+	apub   *ecdsa.PublicKey // the half that verifies assertions
+	auth   *Auth
 }
+
+const testPID = "usr_0123456789abcdef"
 
 // echo is the app: it reports the identity headers and cookies it received.
 type echo struct {
@@ -69,7 +75,12 @@ func newAuthRig(t *testing.T) *authRig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	g := &authRig{priv: priv, exch: &fakeExchanger{token: "TOK", exp: time.Now().Add(7 * 24 * time.Hour).Truncate(time.Second)}}
+	akey, err := authn.ParseAssertionKey(mustKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := &authRig{priv: priv, apub: &akey.PublicKey, exch: &fakeExchanger{token: "TOK", exp: time.Now().Add(7 * 24 * time.Hour).Truncate(time.Second)}}
+	g.exch.token = g.session("crm", 7, "cb")
 	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		g.hits++
 		_ = json.NewEncoder(w).Encode(echo{Headers: r.Header, Cookie: r.Header.Get("Cookie"), Path: r.URL.RequestURI()})
@@ -86,13 +97,23 @@ func newAuthRig(t *testing.T) *authRig {
 	}})
 	hd := NewHandler(testDomain, tbl)
 	hd.Access = g.access
-	hd.Auth = &Auth{PublicKey: pub, AuthURL: testAuthURL, Exchanger: g.exch}
+	hd.Auth = &Auth{PublicKey: pub, AuthURL: testAuthURL, Exchanger: g.exch, AssertionKey: akey}
+	g.auth = hd.Auth
 	g.h = obs.RequestID(obs.NewLogger(io.Discard), hd)
 	return g
 }
 
 func (g *authRig) session(slug string, uid int64, sid string) string {
-	return authn.Sign(g.priv, authn.Claims{SID: sid, UserID: uid, Email: "ana@example.com", Slug: slug, Exp: time.Now().Add(time.Hour).Unix()})
+	return g.sessionFor(slug, uid, sid, testPID)
+}
+
+func (g *authRig) sessionFor(slug string, uid int64, sid, pid string) string {
+	return authn.Sign(g.priv, authn.Claims{SID: sid, UserID: uid, PublicID: pid, Email: "ana@example.com", Slug: slug, Exp: time.Now().Add(time.Hour).Unix()})
+}
+
+func mustKey() string {
+	k, _ := authn.NewAssertionKeyPair()
+	return k
 }
 
 type reqOpt func(*http.Request)
@@ -171,7 +192,7 @@ func TestMemberIsForwarded(t *testing.T) {
 	e := seen(t, g.do("GET", "crm."+testDomain, "/reports",
 		withCookie("a=1; "+testCookie+"="+tok+"; theme=dark"),
 		withHeader("X-Foyr-Role", "owner")))
-	if e.Headers.Get("X-Foyr-User-Id") != "7" || e.Headers.Get("X-Foyr-Email") != "ana@example.com" || e.Headers.Get("X-Foyr-Role") != "admin" {
+	if e.Headers.Get("X-Foyr-User-Id") != testPID || e.Headers.Get("X-Foyr-Email") != "ana@example.com" || e.Headers.Get("X-Foyr-Role") != "admin" {
 		t.Errorf("identity headers = %v", e.Headers)
 	}
 	if e.Cookie != "a=1; theme=dark" {
@@ -207,7 +228,7 @@ func TestPublicAppIdentifiesSignedInVisitors(t *testing.T) {
 		t.Error("anonymous visitor got an identity")
 	}
 	e := seen(t, g.do("GET", "blog."+testDomain, "/", withCookie(testCookie+"="+g.session("blog", 42, "s9"))))
-	if e.Headers.Get("X-Foyr-User-Id") != "42" || e.Headers.Get("X-Foyr-Role") != "viewer" {
+	if e.Headers.Get("X-Foyr-User-Id") != testPID || e.Headers.Get("X-Foyr-Role") != "viewer" {
 		t.Errorf("signed-in visitor of a public app: %v", e.Headers)
 	}
 }
@@ -226,9 +247,9 @@ func TestSessionForOtherAppRejected(t *testing.T) {
 
 func TestBadAndExpiredSessionsAreNoSession(t *testing.T) {
 	g := newAuthRig(t)
-	expired := authn.Sign(g.priv, authn.Claims{SID: "s", UserID: 7, Slug: "crm", Exp: time.Now().Add(-time.Minute).Unix()})
+	expired := authn.Sign(g.priv, authn.Claims{SID: "s", UserID: 7, PublicID: testPID, Slug: "crm", Exp: time.Now().Add(-time.Minute).Unix()})
 	_, otherPriv, _ := ed25519.GenerateKey(rand.Reader)
-	forged := authn.Sign(otherPriv, authn.Claims{SID: "s", UserID: 7, Slug: "crm", Exp: time.Now().Add(time.Hour).Unix()})
+	forged := authn.Sign(otherPriv, authn.Claims{SID: "s", UserID: 7, PublicID: testPID, Slug: "crm", Exp: time.Now().Add(time.Hour).Unix()})
 	for name, tok := range map[string]string{"expired": expired, "forged": forged, "garbage": "v1.x.y"} {
 		w := g.do("GET", "crm."+testDomain, "/", withHeader("Accept", "text/html"), withCookie(testCookie+"="+tok))
 		if w.Code != http.StatusFound {
@@ -268,7 +289,7 @@ func TestRevokedAndRemoved(t *testing.T) {
 func TestFreshSessionWaitsForTheSnapshot(t *testing.T) {
 	g := newAuthRig(t)
 	sign := func(iat time.Time) string {
-		return authn.Sign(g.priv, authn.Claims{SID: "s1", UserID: 99, Email: "new@example.com", Slug: "crm",
+		return authn.Sign(g.priv, authn.Claims{SID: "s1", UserID: 99, PublicID: testPID, Email: "new@example.com", Slug: "crm",
 			Iat: iat.Unix(), Exp: time.Now().Add(time.Hour).Unix()})
 	}
 	w := g.do("GET", "crm."+testDomain, "/", withHeader("Accept", "text/html"), withCookie(testCookie+"="+sign(time.Now().Add(-2*time.Second))))
@@ -338,7 +359,7 @@ func TestCallback(t *testing.T) {
 		t.Fatalf("cookies = %v", cs)
 	}
 	c := cs[0]
-	if c.Name != testCookie || c.Value != "TOK" || !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode || c.Path != "/" || c.Domain != "" {
+	if c.Name != testCookie || c.Value != g.exch.token || !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode || c.Path != "/" || c.Domain != "" {
 		t.Errorf("cookie = %+v", c)
 	}
 	if !c.Expires.Equal(g.exch.exp) {
@@ -489,5 +510,162 @@ func TestHTTPExchanger(t *testing.T) {
 	}
 	if err := x.Logout(context.Background(), "other"); err == nil {
 		t.Error("a 400 on logout was accepted")
+	}
+}
+
+func tokenKid(t *testing.T, tok string) string {
+	t.Helper()
+	seg, _, _ := strings.Cut(tok, ".")
+	raw, err := base64.RawURLEncoding.DecodeString(seg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var h struct{ Kid string }
+	_ = json.Unmarshal(raw, &h)
+	return h.Kid
+}
+
+func TestAssertionAccompaniesIdentity(t *testing.T) {
+	g := newAuthRig(t)
+	e := seen(t, g.do("GET", "crm."+testDomain, "/", withCookie(testCookie+"="+g.session("crm", 7, "s1"))))
+	for _, k := range []string{"X-Foyr-User-Id", "X-Foyr-Email", "X-Foyr-Role", "X-Foyr-Assertion"} {
+		if e.Headers.Get(k) == "" {
+			t.Errorf("missing %s", k)
+		}
+	}
+	if e.Headers.Get("X-Foyr-User-Id") != testPID {
+		t.Errorf("user id header %q", e.Headers.Get("X-Foyr-User-Id"))
+	}
+	tok := e.Headers.Get("X-Foyr-Assertion")
+	c, err := authn.VerifyAssertion(authn.KeySet([]*ecdsa.PublicKey{g.apub}), tok, testAuthURL, "crm", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Sub != testPID || c.Email != "ana@example.com" || c.Role != "admin" || c.Exp-c.Iat != 60 {
+		t.Errorf("claims = %+v", c)
+	}
+	if tokenKid(t, tok) != authn.KeyID(g.apub) {
+		t.Error("kid does not match the key")
+	}
+}
+
+func TestViewerOfPublicAppGetsAViewerAssertion(t *testing.T) {
+	g := newAuthRig(t)
+	e := seen(t, g.do("GET", "blog."+testDomain, "/", withCookie(testCookie+"="+g.session("blog", 42, "s9"))))
+	c, err := authn.VerifyAssertion(authn.KeySet([]*ecdsa.PublicKey{g.apub}), e.Headers.Get("X-Foyr-Assertion"), testAuthURL, "blog", time.Now())
+	if err != nil || c.Role != "viewer" || c.Sub != testPID {
+		t.Fatalf("claims = %+v err = %v", c, err)
+	}
+}
+
+func TestAnonymousVisitorGetsNoIdentityHeaders(t *testing.T) {
+	g := newAuthRig(t)
+	e := seen(t, g.do("GET", "blog."+testDomain, "/"))
+	for _, k := range []string{"X-Foyr-User-Id", "X-Foyr-Email", "X-Foyr-Role", "X-Foyr-Assertion"} {
+		if _, ok := e.Headers[k]; ok {
+			t.Errorf("anonymous visitor got %s", k)
+		}
+	}
+}
+
+func TestVisitorSentAssertionIsDeleted(t *testing.T) {
+	g := newAuthRig(t)
+	e := seen(t, g.do("GET", "blog."+testDomain, "/", withHeader("X-Foyr-Assertion", "forged")))
+	if _, ok := e.Headers["X-Foyr-Assertion"]; ok {
+		t.Error("a forged assertion reached the app (anonymous)")
+	}
+	e = seen(t, g.do("GET", "crm."+testDomain, "/", withHeader("X-Foyr-Assertion", "forged"),
+		withCookie(testCookie+"="+g.session("crm", 7, "s1"))))
+	vals := e.Headers.Values("X-Foyr-Assertion")
+	if len(vals) != 1 || vals[0] == "forged" {
+		t.Fatalf("assertion headers = %v", vals)
+	}
+	if _, err := authn.VerifyAssertion(authn.KeySet([]*ecdsa.PublicKey{g.apub}), vals[0], testAuthURL, "crm", time.Now()); err != nil {
+		t.Errorf("the genuine assertion does not verify: %v", err)
+	}
+}
+
+func TestSessionWithoutPublicIDIsSignedOut(t *testing.T) {
+	g := newAuthRig(t)
+	old := g.sessionFor("crm", 7, "s1", "")
+	w := g.do("GET", "crm."+testDomain, "/", withHeader("Accept", "text/html"), withCookie(testCookie+"="+old))
+	if w.Code != http.StatusFound || !strings.HasPrefix(w.Header().Get("Location"), testAuthURL+"/login?app=crm") {
+		t.Fatalf("browser: %d %q", w.Code, w.Header().Get("Location"))
+	}
+	w = g.do("GET", "crm."+testDomain, "/api/x", withCookie(testCookie+"="+old))
+	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "login required") {
+		t.Fatalf("api: %d %s", w.Code, w.Body)
+	}
+	if g.hits != 0 {
+		t.Fatal("the app was reached with a session lacking a public id")
+	}
+	if w := g.do("GET", "crm."+testDomain, "/", withCookie(testCookie+"="+g.session("crm", 7, "s2"))); w.Code != http.StatusOK {
+		t.Errorf("fresh session: %d", w.Code)
+	}
+}
+
+func TestSigningFailureAnswers500AndForwardsNothing(t *testing.T) {
+	g := newAuthRig(t)
+	g.auth.AssertionKey = nil
+	w := g.do("GET", "crm."+testDomain, "/", withCookie(testCookie+"="+g.session("crm", 7, "s1")))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status %d, want 500", w.Code)
+	}
+	if g.hits != 0 {
+		t.Error("the request was forwarded")
+	}
+}
+
+func TestCallbackRefusesATokenWithoutPublicID(t *testing.T) {
+	g := newAuthRig(t)
+	g.exch.token = g.sessionFor("crm", 7, "s1", "")
+	w := g.do("GET", "crm."+testDomain, "/__foyr/callback?code=abc")
+	if w.Code != http.StatusBadGateway || strings.Contains(w.Body.String(), g.exch.token) {
+		t.Errorf("status %d, want 502 and no token in the page", w.Code)
+	}
+	if len(w.Result().Cookies()) != 0 || w.Header().Get("Set-Cookie") != "" {
+		t.Error("a cookie was set")
+	}
+	if g.hits != 0 {
+		t.Error("the app was hit")
+	}
+}
+
+func TestCallbackRefusesABadToken(t *testing.T) {
+	g := newAuthRig(t)
+	_, otherPriv, _ := ed25519.GenerateKey(rand.Reader)
+	for name, tok := range map[string]string{
+		"garbage":   "v1.x.y",
+		"wrong key": authn.Sign(otherPriv, authn.Claims{SID: "s", UserID: 7, PublicID: testPID, Slug: "crm", Exp: time.Now().Add(time.Hour).Unix()}),
+	} {
+		g.exch.token = tok
+		w := g.do("GET", "crm."+testDomain, "/__foyr/callback?code=abc")
+		if w.Code != http.StatusBadGateway || len(w.Result().Cookies()) != 0 {
+			t.Errorf("%s: status %d cookies %v, want 502 and none", name, w.Code, w.Result().Cookies())
+		}
+	}
+	if g.hits != 0 {
+		t.Error("the app was hit")
+	}
+}
+
+func TestConnectionHeaderCannotStripIdentity(t *testing.T) {
+	g := newAuthRig(t)
+	conns := []string{"X-Foyr-Assertion", "X-Foyr-User-Id", "X-Foyr-Role, X-Foyr-Email",
+		"X-Foyr-Assertion, X-Foyr-User-Id, X-Foyr-Role, X-Foyr-Email, close"}
+	for _, c := range conns {
+		e := seen(t, g.do("GET", "crm."+testDomain, "/", withHeader("Connection", c), withCookie(testCookie+"="+g.session("crm", 7, "s1"))))
+		if e.Headers.Get("X-Foyr-User-Id") != testPID || e.Headers.Get("X-Foyr-Email") != "ana@example.com" || e.Headers.Get("X-Foyr-Role") != "admin" {
+			t.Errorf("Connection %q: identity headers = %v", c, e.Headers)
+		}
+		if _, err := authn.VerifyAssertion(authn.KeySet([]*ecdsa.PublicKey{g.apub}), e.Headers.Get("X-Foyr-Assertion"), testAuthURL, "crm", time.Now()); err != nil {
+			t.Errorf("Connection %q: assertion: %v", c, err)
+		}
+		an := seen(t, g.do("GET", "blog."+testDomain, "/", withHeader("Connection", c)))
+		for _, k := range []string{"X-Foyr-User-Id", "X-Foyr-Email", "X-Foyr-Role", "X-Foyr-Assertion"} {
+			if _, ok := an.Headers[k]; ok {
+				t.Errorf("Connection %q: anonymous got %s", c, k)
+			}
+		}
 	}
 }

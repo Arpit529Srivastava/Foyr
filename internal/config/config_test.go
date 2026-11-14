@@ -1,7 +1,9 @@
 package config
 
 import (
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -11,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Arpit529Srivastava/Foyr/internal/authn"
 )
 
 func testKeyPEM(t *testing.T) []byte {
@@ -160,6 +164,7 @@ func loginEnv(t *testing.T) env {
 	for i := range seed {
 		seed[i] = byte(i + 1)
 	}
+	_, pub := authn.NewAssertionKeyPair()
 	return env{
 		"FOYR_GITHUB_APP_ID":         "1",
 		"FOYR_GITHUB_WEBHOOK_SECRET": "a-long-random-webhook-secret",
@@ -168,6 +173,7 @@ func loginEnv(t *testing.T) env {
 		"FOYR_INTERNAL_TOKEN":        "internal-token-internal-token-123456",
 		"FOYR_WORKERS":               "0",
 		"FOYR_APPS_DOMAIN":           "apps.foyr.online",
+		"FOYR_ASSERTION_PUBLIC_KEYS": pub,
 		"FOYR_SESSION_KEY":           base64.StdEncoding.EncodeToString(seed),
 		"FOYR_AUTH_URL":              "https://auth.foyr.online/",
 		"FOYR_RESEND_API_KEY":        "re_test_key",
@@ -181,7 +187,7 @@ func TestLoginSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(c.SessionKey) != ed25519.PrivateKeySize || c.AuthURL != "https://auth.foyr.online" ||
-		c.ResendAPIKey != "re_test_key" || c.MailFrom != "Foyr <login@foyr.online>" || !c.LoginOn() {
+		c.ResendAPIKey != "re_test_key" || c.MailFrom != "Foyr <login@foyr.online>" || !c.LoginOn() || len(c.AssertionPublicKeys) != 1 {
 		t.Fatalf("config = %+v", c)
 	}
 
@@ -189,6 +195,7 @@ func TestLoginSettings(t *testing.T) {
 	off := loginEnv(t)
 	delete(off, "FOYR_SESSION_KEY")
 	off["FOYR_AUTH_URL"] = "http://evil.com"
+	delete(off, "FOYR_ASSERTION_PUBLIC_KEYS")
 	if c, err := Load(off.get); err != nil || c.LoginOn() {
 		t.Fatalf("login off: %+v, %v", c, err)
 	}
@@ -203,7 +210,21 @@ func TestLoginSettings(t *testing.T) {
 	}
 }
 
+func p384PublicKey(t *testing.T) string {
+	t.Helper()
+	k, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKIXPublicKey(&k.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return base64.StdEncoding.EncodeToString(der)
+}
+
 func TestLoginSettingsRejected(t *testing.T) {
+	priv, _ := authn.NewAssertionKeyPair()
 	cases := []struct {
 		name    string
 		edit    func(env)
@@ -217,6 +238,10 @@ func TestLoginSettingsRejected(t *testing.T) {
 		{"auth url with a path", func(e env) { e["FOYR_AUTH_URL"] = "https://auth.foyr.online/login" }, "FOYR_AUTH_URL must be https"},
 		{"no mail setup", func(e env) { delete(e, "FOYR_RESEND_API_KEY") }, "FOYR_RESEND_API_KEY"},
 		{"resend without a from address", func(e env) { delete(e, "FOYR_MAIL_FROM") }, "FOYR_MAIL_FROM"},
+		{"no assertion keys", func(e env) { delete(e, "FOYR_ASSERTION_PUBLIC_KEYS") }, "FOYR_ASSERTION_PUBLIC_KEYS is not set"},
+		{"malformed assertion keys", func(e env) { e["FOYR_ASSERTION_PUBLIC_KEYS"] = "not-a-key-zzz" }, "FOYR_ASSERTION_PUBLIC_KEYS"},
+		{"P-384 assertion key", func(e env) { e["FOYR_ASSERTION_PUBLIC_KEYS"] = p384PublicKey(t) }, "FOYR_ASSERTION_PUBLIC_KEYS"},
+		{"private key instead", func(e env) { e["FOYR_ASSERTION_PUBLIC_KEYS"] = priv }, "FOYR_ASSERTION_PUBLIC_KEYS"},
 		{"no apps domain", func(e env) { delete(e, "FOYR_APPS_DOMAIN") }, "FOYR_APPS_DOMAIN"},
 	}
 	for _, c := range cases {
@@ -228,6 +253,9 @@ func TestLoginSettingsRejected(t *testing.T) {
 		}
 		if err != nil && strings.Contains(err.Error(), e["FOYR_SESSION_KEY"]) && e["FOYR_SESSION_KEY"] != "" {
 			t.Errorf("%s: error leaks the session key: %v", c.name, err)
+		}
+		if v := e["FOYR_ASSERTION_PUBLIC_KEYS"]; err != nil && v != "" && strings.Contains(err.Error(), v) {
+			t.Errorf("%s: error leaks the assertion keys: %v", c.name, err)
 		}
 	}
 }

@@ -78,6 +78,8 @@ resource "aws_ecs_task_definition" "authproxy" {
       { name = "FOYR_INTERNAL_TOKEN", valueFrom = "arn:aws:ssm:${var.region}:${local.account_id}:parameter/foyr/platform/${local.foyrd_secrets.FOYR_INTERNAL_TOKEN}" },
       # Only the public half: authproxy can check sessions but never make one.
       { name = "FOYR_SESSION_PUBLIC_KEY", valueFrom = "arn:aws:ssm:${var.region}:${local.account_id}:parameter/foyr/platform/session-public-key" },
+      # The private half, authproxy's own signing key, separate from the session key.
+      { name = "FOYR_ASSERTION_KEY", valueFrom = "arn:aws:ssm:${var.region}:${local.account_id}:parameter/foyr/platform/assertion-key" },
     ]
     logConfiguration = {
       logDriver = "awslogs"

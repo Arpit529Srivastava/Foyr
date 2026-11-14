@@ -33,6 +33,9 @@ func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handl
 	if cfg.LoginOn() {
 		(&login.Handler{Store: st, Mail: sender, AuthURL: cfg.AuthURL, AppsDomain: cfg.AppsDomain, SiteURL: siteURL(cfg)}).Register(mux)
 	}
+	if cfg.LoginOn() {
+		mux.Handle("GET /.well-known/jwks.json", onAuthHost(cfg.AuthURL, jwksHandler(cfg.AssertionPublicKeys)))
+	}
 	// The customer dashboard: the founder sign-in, plus customer magic-link sign-in when login is on (ADR-036).
 	dash := &dashboard.Handler{Data: st, Who: founderOnly(fh), SignIn: "/founder", AppsDomain: cfg.AppsDomain, AppsScheme: appsScheme(cfg), Mail: sender, SiteURL: siteURL(cfg)}
 	if cfg.LoginOn() {
@@ -46,6 +49,18 @@ func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handl
 		Record:    recordDelivery(st),
 	})
 	return obs.RequestID(log, mux)
+}
+
+// onAuthHost answers 404 unless the request is for the host of authURL.
+func onAuthHost(authURL string, next http.Handler) http.Handler {
+	u, err := url.Parse(authURL)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err != nil || u.Host == "" || !strings.EqualFold(r.Host, u.Host) {
+			http.NotFound(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // mailer picks how login and invite emails go out: Resend, the log in local development, or nothing
