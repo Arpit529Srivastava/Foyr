@@ -59,6 +59,7 @@ type Handler struct {
 
 	Auth    Auth   // customer sign-in; nil turns it off
 	DashURL string // https://app.<PLATFORM_DOMAIN>, or http://localhost:<port> in development
+	AuthURL string // https://auth.<PLATFORM_DOMAIN>, where app sign-in lives; the email form after a failed SSO hop
 
 	byIP, byEmail web.Window
 	sending       sync.WaitGroup
@@ -111,6 +112,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /dashboard/login/verify", h.signinRoute(h.verifyPage))
 	mux.HandleFunc("POST /dashboard/login/verify", h.signinRoute(h.verify))
 	mux.HandleFunc("POST /dashboard/logout", h.signinRoute(h.signOut))
+	mux.HandleFunc("GET /dashboard/sso", h.signinRoute(h.sso))
 	mux.HandleFunc("GET /dashboard", h.guard(h.start))
 	mux.HandleFunc("GET /dashboard/{account}", h.guard(h.account))
 	mux.HandleFunc("GET /dashboard/{account}/{app}", h.guard(h.app))
