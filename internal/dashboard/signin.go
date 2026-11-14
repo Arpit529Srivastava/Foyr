@@ -2,8 +2,10 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +24,7 @@ const (
 	rateWindow          = 15 * time.Minute
 	maxEmailsPerAddress = 3
 	maxPostsPerIP       = 10
+	maxSSOPerUser       = 20 // dashboard SSO hops per person per window; each one stores a code and an audit row
 )
 
 // Auth is the dashboard sign-in the store provides.
@@ -30,6 +33,7 @@ type Auth interface {
 	FinishDashboardLogin(ctx context.Context, raw string, now time.Time) (store.DashboardSession, error)
 	DashboardUserBySession(ctx context.Context, raw string, now time.Time) (store.DashboardUser, error)
 	RevokeDashboardSession(ctx context.Context, raw string) error
+	IssueSSOCode(ctx context.Context, userID int64, slug string, now time.Time) (string, error)
 }
 
 // Wait blocks until sign-in emails being sent in the background are done (tests).
@@ -189,4 +193,42 @@ func (h *Handler) signOut(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{Name: CookieName, Value: "", Path: "/", MaxAge: -1, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	http.Redirect(w, r, "/dashboard/login", http.StatusSeeOther)
+}
+
+// emailFormURL is app sign-in with the email form forced: sso=0 stops it hopping back here (ADR-039).
+func (h *Handler) emailFormURL(slug, ret string) string {
+	return strings.TrimRight(h.AuthURL, "/") + "/login?" + url.Values{"app": {slug}, "return": {ret}, "sso": {"0"}}.Encode()
+}
+
+// sso lets a signed-in owner or admin of an app's account into the app without the email step. The visitor
+// arrives from the login page on the auth host, which cannot see this host's cookie. Anyone else is sent on to
+// the email form, or told why they were not let in (ADR-039).
+func (h *Handler) sso(w http.ResponseWriter, r *http.Request) {
+	slug, ret := authn.CleanSlug(r.URL.Query().Get("app")), authn.SafeReturn(r.URL.Query().Get("return"))
+	if slug == "" {
+		h.notFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	p, ok := h.person(r)
+	if !ok || p.Founder || p.UserID == 0 { // the founder key is not a user: it has no account roles to check
+		http.Redirect(w, r, h.emailFormURL(slug, ret), http.StatusSeeOther)
+		return
+	}
+	if !h.bySSO.Allow(strconv.FormatInt(p.UserID, 10), maxSSOPerUser, rateWindow, h.now()) {
+		obs.Logger(r.Context()).Warn("dashboard sso refused: rate limited", "user", p.UserID)
+		http.Redirect(w, r, h.emailFormURL(slug, ret), http.StatusSeeOther)
+		return
+	}
+	code, err := h.Auth.IssueSSOCode(r.Context(), p.UserID, slug, h.now())
+	switch {
+	case errors.Is(err, store.ErrNoSSO):
+		h.render(w, r, http.StatusForbidden, "sso_denied.html", map[string]any{"Email": p.Email, "LoginURL": h.emailFormURL(slug, ret)})
+	case err != nil:
+		h.fail(w, r, err)
+	default:
+		dest := url.URL{Scheme: h.AppsScheme, Host: slug + "." + h.AppsDomain, Path: "/__foyr/callback",
+			RawQuery: url.Values{"code": {code}, "return": {ret}}.Encode()}
+		http.Redirect(w, r, dest.String(), http.StatusSeeOther)
+	}
 }

@@ -70,3 +70,24 @@ The banner image comes from the public site (`/email/banner.jpg`); without a pub
 2. Open `http://localhost:8090/dashboard`. It sends you to `/dashboard/login`. Enter the email; the sign-in link is printed in foyrd's log (`/dashboard/login/verify?t=...`). Open it and press **Continue**.
 3. You see only that account, without the founder banner. **Sign out** is in the account menu.
 4. The founder and customer cookies share `localhost`, so sign the founder out first, as in step 1.
+
+## Dashboard to app SSO (ADR-039)
+
+An owner or admin who is signed in to the dashboard opens their account's private apps with no second sign-in.
+```
+authproxy ─no app session─► auth host /login?app=<slug>
+                              └─303► dashboard host /dashboard/sso?app=<slug>&return=…   (reads __Host-foyr_dash)
+                                       owner/admin of the app's account ─303► <slug>.apps…/__foyr/callback?code=…
+                                       signed out ─303► /login?app=<slug>&sso=0   (the email form)
+                                       signed in, not owner/admin ─403 "No automatic access" page (link to the email form)
+```
+Locally the auth and dashboard hosts are both `localhost:8080`, so the hop is a redirect on the same host.
+
+Try it, with the three terminals from above:
+1. At `http://localhost:8080/founder/accounts`, link `you@example.com` to the account as **owner**, and `mia@example.com` as **member**. Sign the founder out.
+2. Sign in at `http://localhost:8080/dashboard/login` as `you@example.com` (link in foyrd's log).
+3. In the same browser open `http://foyr-hello.apps.localhost:8081/` (make the app private first). You land in the app with no email; the echo app shows your `X-Foyr-*` headers.
+4. Sign in as `mia@example.com` instead and open the app: you get "No automatic access" with a link to the email form.
+5. On the founder page remove `you@example.com` from the account: within about 3 seconds the same browser gets the app's "No access" page (403).
+
+`GET /login?app=<slug>&sso=0` always shows the email form; that is what a failed hop falls back to, so the two hosts can never loop.

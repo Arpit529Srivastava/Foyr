@@ -27,11 +27,14 @@ type fakeAuth struct {
 	sessions map[string]store.DashboardUser // cookie value to user
 	revoked  []string
 	n        int
+	ssoCalls int // IssueSSOCode calls
 }
 
 func newAuth() *fakeAuth {
 	return &fakeAuth{linked: map[string]bool{"ana@acme.test": true}, tokens: map[string]string{}, sessions: map[string]store.DashboardUser{
 		"ana-cookie": {ID: 7, Email: "ana@acme.test", Accounts: []store.AccountAccess{{Installation: store.Installation{ID: 1, Login: "acme"}, Role: "owner"}}},
+		"mia-cookie": {ID: 8, Email: "mia@acme.test", Accounts: []store.AccountAccess{{Installation: store.Installation{ID: 1, Login: "acme"}, Role: "member"}}},
+		"zed-cookie": {ID: 9, Email: "zed@other.test", Accounts: []store.AccountAccess{{Installation: store.Installation{ID: 2, Login: "other"}, Role: "owner"}}},
 	}}
 }
 
@@ -93,7 +96,8 @@ type loginRig struct {
 
 func newRig(founder bool) *loginRig {
 	r := &loginRig{auth: newAuth(), box: &outbox{}}
-	r.h = &Handler{Data: fake{m: newMem()}, Auth: r.auth, DashURL: dashOrigin, SignIn: "/founder", AppsDomain: "apps.test",
+	r.h = &Handler{Data: fake{m: newMem()}, Auth: r.auth, DashURL: dashOrigin, AuthURL: "https://auth.foyr.test", AppsScheme: "https",
+		SignIn: "/founder", AppsDomain: "apps.test",
 		Mail: r.box, SiteURL: "https://foyr.test", Now: func() time.Time { return now }}
 	if founder {
 		r.h.Who = func(req *http.Request) (Person, bool) {

@@ -31,3 +31,9 @@
 <p>Sign-in links work once and expire after 15 minutes. Ask for a new one.</p>
 <p><a href="/dashboard/login">Back to sign in</a></p>
 {{template "sifoot"}}{{end}}
+
+{{define "sso_denied.html"}}{{template "sihead" .}}
+<h1>No automatic access</h1>
+<p>You're signed in as {{.Email}}. Only owners and admins of this app's account open it automatically. Ask an owner or admin, or use an email link if you were invited to this app.</p>
+<p><a href="{{.LoginURL}}">Email me a sign-in link instead</a></p>
+{{template "sifoot"}}{{end}}

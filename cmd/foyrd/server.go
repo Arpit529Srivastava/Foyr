@@ -31,7 +31,7 @@ func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handl
 	fh := &founder.Handler{Data: st, Key: cfg.FounderKey, AppsDomain: cfg.AppsDomain, AppsScheme: appsScheme(cfg), Mail: sender, SiteURL: siteURL(cfg)}
 	fh.Register(mux)
 	if cfg.LoginOn() {
-		(&login.Handler{Store: st, Mail: sender, AuthURL: cfg.AuthURL, AppsDomain: cfg.AppsDomain, SiteURL: siteURL(cfg)}).Register(mux)
+		(&login.Handler{Store: st, Mail: sender, AuthURL: cfg.AuthURL, AppsDomain: cfg.AppsDomain, SiteURL: siteURL(cfg), DashURL: dashboardURL(cfg)}).Register(mux)
 	}
 	if cfg.LoginOn() {
 		mux.Handle("GET /.well-known/jwks.json", onAuthHost(cfg.AuthURL, jwksHandler(cfg.AssertionPublicKeys)))
@@ -39,7 +39,7 @@ func newServer(cfg *config.Config, log *slog.Logger, st *store.Store) http.Handl
 	// The customer dashboard: the founder sign-in, plus customer magic-link sign-in when login is on (ADR-036).
 	dash := &dashboard.Handler{Data: st, Who: founderOnly(fh), SignIn: "/founder", AppsDomain: cfg.AppsDomain, AppsScheme: appsScheme(cfg), Mail: sender, SiteURL: siteURL(cfg)}
 	if cfg.LoginOn() {
-		dash.Auth, dash.DashURL = st, dashboardURL(cfg)
+		dash.Auth, dash.DashURL, dash.AuthURL = st, dashboardURL(cfg), cfg.AuthURL
 	}
 	dash.Register(mux)
 	mux.Handle("POST /webhooks/github", &github.Handler{

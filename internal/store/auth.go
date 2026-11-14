@@ -352,6 +352,33 @@ func (s *Store) Access(ctx context.Context) (authn.AccessSnapshot, error) {
 	if err := members.Err(); err != nil {
 		return snap, err
 	}
+	// Owners and admins of an app's account open its apps without a second sign-in (ADR-039). They are added
+	// live, never copied, so leaving the account drops them on the next poll. An explicit app role wins.
+	staff, err := s.Pool.Query(ctx, `SELECT a.id, m.user_id, m.role
+		FROM apps a
+		JOIN installations i ON i.id = a.installation_id
+		JOIN account_members m ON m.installation_id = a.installation_id
+		WHERE a.removed_at IS NULL AND a.slug IS NOT NULL AND i.removed_at IS NULL AND i.suspended_at IS NULL
+		AND m.role IN ('owner', 'admin')`)
+	if err != nil {
+		return snap, err
+	}
+	defer staff.Close()
+	for staff.Next() {
+		var appID, userID int64
+		var role string
+		if err := staff.Scan(&appID, &userID, &role); err != nil {
+			return snap, err
+		}
+		if i, ok := byID[appID]; ok {
+			if _, explicit := snap.Apps[i].Members[userID]; !explicit {
+				snap.Apps[i].Members[userID] = role
+			}
+		}
+	}
+	if err := staff.Err(); err != nil {
+		return snap, err
+	}
 	revoked, err := s.Pool.Query(ctx, `SELECT id FROM sessions WHERE revoked_at IS NOT NULL AND expires_at > now() ORDER BY id`)
 	if err != nil {
 		return snap, err
