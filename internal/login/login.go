@@ -7,7 +7,6 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -38,6 +37,7 @@ type Handler struct {
 	AuthURL    string // https://auth.<PLATFORM_DOMAIN>, or http://localhost:<port> in development
 	AppsDomain string // APPS_DOMAIN, with a port in development
 	SiteURL    string // https://foyr.online, where the email banner image lives; empty in development
+	DashURL    string // https://app.<PLATFORM_DOMAIN>, where dashboard SSO runs; empty turns the hop off
 	Now        func() time.Time
 
 	byIP, byEmail window
@@ -89,16 +89,6 @@ func (h *Handler) guard(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-var slugRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$`)
-
-// cleanSlug returns s if it can be an app slug, else "". It is only ever shown, never trusted.
-func cleanSlug(s string) string {
-	if slugRE.MatchString(s) {
-		return s
-	}
-	return ""
-}
-
 func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, name string, data map[string]any) {
 	data["Nonce"] = ui.SecureHeaders(w)
 	if name == "verify.html" {
@@ -114,14 +104,21 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, nam
 }
 
 func (h *Handler) form(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, http.StatusOK, "page.html", map[string]any{
-		"App": cleanSlug(r.URL.Query().Get("app")), "Return": authn.SafeReturn(r.URL.Query().Get("return")),
-	})
+	app, ret := authn.CleanSlug(r.URL.Query().Get("app")), authn.SafeReturn(r.URL.Query().Get("return"))
+	// A signed-in owner or admin of the app's account needs no email: ask the dashboard host, the only host
+	// that can read the dashboard cookie, to hand over a code (ADR-039). sso=0 comes back from a failed hop.
+	if h.DashURL != "" && app != "" && r.URL.Query().Get("sso") != "0" {
+		w.Header().Set("Cache-Control", "no-store")
+		dest := strings.TrimRight(h.DashURL, "/") + "/dashboard/sso?" + url.Values{"app": {app}, "return": {ret}}.Encode()
+		http.Redirect(w, r, dest, http.StatusSeeOther)
+		return
+	}
+	h.render(w, r, http.StatusOK, "page.html", map[string]any{"App": app, "Return": ret})
 }
 
 func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 	log := obs.Logger(r.Context())
-	app, ret := cleanSlug(r.PostFormValue("app")), authn.SafeReturn(r.PostFormValue("return"))
+	app, ret := authn.CleanSlug(r.PostFormValue("app")), authn.SafeReturn(r.PostFormValue("return"))
 	email, ok := authn.NormalizeEmail(r.PostFormValue("email"))
 	if !ok {
 		h.render(w, r, http.StatusBadRequest, "page.html", map[string]any{
@@ -170,12 +167,12 @@ func (h *Handler) verifyPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.render(w, r, http.StatusOK, "verify.html", map[string]any{
-		"T": q.Get("t"), "App": cleanSlug(q.Get("app")), "Return": authn.SafeReturn(q.Get("return")),
+		"T": q.Get("t"), "App": authn.CleanSlug(q.Get("app")), "Return": authn.SafeReturn(q.Get("return")),
 	})
 }
 
 func (h *Handler) verify(w http.ResponseWriter, r *http.Request) {
-	app, ret := cleanSlug(r.PostFormValue("app")), authn.SafeReturn(r.PostFormValue("return"))
+	app, ret := authn.CleanSlug(r.PostFormValue("app")), authn.SafeReturn(r.PostFormValue("return"))
 	raw := r.PostFormValue("t")
 	if raw == "" {
 		h.expired(w, r, app, ret)

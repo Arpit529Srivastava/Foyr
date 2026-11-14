@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -102,6 +103,17 @@ func SafeReturn(p string) string {
 }
 
 func isControl(r rune) bool { return r < 0x20 || r == 0x7f }
+
+var slugRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$`)
+
+// CleanSlug returns s if it can be an app slug, else "". It is only ever shown or used to build a host
+// name, never trusted as proof that the app exists.
+func CleanSlug(s string) string {
+	if slugRE.MatchString(s) {
+		return s
+	}
+	return ""
+}
 
 // ParsePrivateKey reads a 32-byte Ed25519 seed in standard base64.
 func ParsePrivateKey(b64seed string) (ed25519.PrivateKey, error) {
