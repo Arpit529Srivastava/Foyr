@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ const (
 	rateWindow          = 15 * time.Minute
 	maxEmailsPerAddress = 3
 	maxPostsPerIP       = 10
+	maxSSOPerUser       = 20 // dashboard SSO hops per person per window; each one stores a code and an audit row
 )
 
 // Auth is the dashboard sign-in the store provides.
@@ -210,6 +212,11 @@ func (h *Handler) sso(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	p, ok := h.person(r)
 	if !ok || p.Founder || p.UserID == 0 { // the founder key is not a user: it has no account roles to check
+		http.Redirect(w, r, h.emailFormURL(slug, ret), http.StatusSeeOther)
+		return
+	}
+	if !h.bySSO.Allow(strconv.FormatInt(p.UserID, 10), maxSSOPerUser, rateWindow, h.now()) {
+		obs.Logger(r.Context()).Warn("dashboard sso refused: rate limited", "user", p.UserID)
 		http.Redirect(w, r, h.emailFormURL(slug, ret), http.StatusSeeOther)
 		return
 	}

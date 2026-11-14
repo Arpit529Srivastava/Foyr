@@ -62,6 +62,7 @@ type Handler struct {
 	AuthURL string // https://auth.<PLATFORM_DOMAIN>, where app sign-in lives; the email form after a failed SSO hop
 
 	byIP, byEmail web.Window
+	bySSO         web.Window // SSO hops per person
 	sending       sync.WaitGroup
 }
 

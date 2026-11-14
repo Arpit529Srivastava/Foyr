@@ -669,3 +669,18 @@ func TestConnectionHeaderCannotStripIdentity(t *testing.T) {
 		}
 	}
 }
+
+// Owners and admins of an app's account arrive in the snapshot like explicit members (ADR-039).
+func TestAccountOwnerInTheSnapshotIsAdmittedUntilRemoved(t *testing.T) {
+	g := newAuthRig(t)
+	g.access.Set(authn.AccessSnapshot{Apps: []authn.AppAccess{{Slug: "crm", Mode: "private", Members: map[int64]string{7: "owner"}}}})
+	tok := g.session("crm", 7, "s9")
+	e := seen(t, g.do("GET", "crm."+testDomain, "/", withHeader("Accept", "text/html"), withCookie(testCookie+"="+tok)))
+	if e.Headers.Get("X-Foyr-Role") != "owner" {
+		t.Errorf("role = %q, want owner", e.Headers.Get("X-Foyr-Role"))
+	}
+	g.access.Set(authn.AccessSnapshot{Apps: []authn.AppAccess{{Slug: "crm", Mode: "private", Members: map[int64]string{}}}})
+	if w := g.do("GET", "crm."+testDomain, "/", withHeader("Accept", "text/html"), withCookie(testCookie+"="+tok)); w.Code != http.StatusForbidden {
+		t.Errorf("after leaving the account: %d, want 403", w.Code)
+	}
+}

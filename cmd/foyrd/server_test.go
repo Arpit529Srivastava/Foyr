@@ -280,6 +280,15 @@ func TestLoginRoutesExistOnlyWhenLoginIsOn(t *testing.T) {
 	if want := "https://app.foyr.test/dashboard/sso?app=foyr-hello&return=%2F"; rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != want {
 		t.Fatalf("login on: GET /login?app = %d %q, want 303 %q", rec.Code, rec.Header().Get("Location"), want)
 	}
+	// A visitor with no dashboard session ends on the email form after the hop, in one step and with no loop.
+	rec = get(on, "app.foyr.test", "/dashboard/sso?app=foyr-hello&return=/")
+	back := "https://auth.foyr.test/login?app=foyr-hello&return=%2F&sso=0"
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != back {
+		t.Fatalf("signed-out SSO = %d %q, want 303 %q", rec.Code, rec.Header().Get("Location"), back)
+	}
+	if rec = get(on, "auth.foyr.test", "/login?app=foyr-hello&return=%2F&sso=0"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `name="email"`) {
+		t.Fatalf("email form after a failed hop = %d %s", rec.Code, rec.Body)
+	}
 	if rec := get(on, "api.foyr.test", "/login"); rec.Code != http.StatusNotFound {
 		t.Errorf("login on the api host = %d, want 404 (only the auth host serves it)", rec.Code)
 	}

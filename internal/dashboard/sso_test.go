@@ -140,3 +140,23 @@ func TestSSOOnlyOnTheDashboardHostAndErrorsAreNotRedirects(t *testing.T) {
 		t.Errorf("store error: %d %q, want 500 and no Location", code, loc)
 	}
 }
+
+func TestSSOIsRateLimitedPerPerson(t *testing.T) {
+	g := newRig(false)
+	for i := 0; i < maxSSOPerUser; i++ {
+		if code, _, _ := ssoGet(g, "crm", "/reports", cookie(CookieName, "ana-cookie")); code != http.StatusSeeOther {
+			t.Fatalf("request %d: status %d, want 303", i+1, code)
+		}
+	}
+	code, loc, _ := ssoGet(g, "crm", "/reports", cookie(CookieName, "ana-cookie"))
+	if code != http.StatusSeeOther || loc != emailFormURL {
+		t.Errorf("over the limit: %d %q, want 303 %q", code, loc, emailFormURL)
+	}
+	if g.auth.ssoCalls != maxSSOPerUser {
+		t.Errorf("IssueSSOCode called %d times, want %d: a refused request must not mint a code or an audit row", g.auth.ssoCalls, maxSSOPerUser)
+	}
+	// Another person is not affected.
+	if code, _, _ := ssoGet(g, "crm", "/reports", cookie(CookieName, "mia-cookie")); code != http.StatusForbidden {
+		t.Errorf("another person: %d, want the normal 403 page", code)
+	}
+}
